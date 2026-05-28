@@ -235,7 +235,20 @@ async function renderReviveOffer(
     }
   }
 
-    /** Convert a human-readable price to the backend's expected integer units.
+  /** Inline error banner under the revive buttons. Auto-dismisses after 4s. */
+  function showReviveErrorToast(msg: string): void {
+    const buttonsEl = _el?.querySelector('.revive-buttons')
+    if (!buttonsEl) return
+    // Remove any prior toast so we don't stack.
+    _el?.querySelector('.revive-error-toast')?.remove()
+    const toast = document.createElement('div')
+    toast.className = 'revive-fallback-toast revive-error-toast'
+    toast.textContent = `Payment failed: ${msg} — try again or pick another currency`
+    buttonsEl.insertAdjacentElement('afterend', toast)
+    setTimeout(() => toast.remove(), 4000)
+  }
+
+  /** Convert a human-readable price to the backend's expected integer units.
    *  TON: nanoton (1 TON = 1e9 nanoton). Stars / YODA: as-given.
    */
   function priceToBackendUnits(c: 'TON' | 'Stars' | 'YODA', amount: number): number {
@@ -259,30 +272,30 @@ async function renderReviveOffer(
         return
       }
 
-      // Failure handling -- distinguish recoverable from terminal.
-      const recoverable =
-        resp.error === 'wallet_required' ||
-        resp.error === 'user_rejected'   ||
-        resp.error === 'sign_failed'
-
+      // Failure handling -- almost everything is recoverable; the offer
+      // stays live so the user can retry. Only an explicit purchase row
+      // creation failure falls through to final.
+      console.warn('[ResultScreen] paid revive failed:', resp.error, currency)
       if (resp.error === 'wallet_required') {
         degradeToStars()
       }
-
-      if (recoverable) {
-        // Restore the button so the user can try again and keep the offer live.
-        if (btn) {
-          btn.disabled = false
-          btn.innerHTML = originalLabel
-        }
-        startCountdown()
-        return
+      // Restore the button label/state and restart the countdown so the
+      // user can pick a different currency or retry the same one.
+      if (btn) {
+        btn.disabled = false
+        btn.innerHTML = originalLabel
       }
-
-      // Unknown / terminal error -- fall through to final result.
-      renderFinalResult(score, outcome, onPlayAgain)
-    } catch {
-      renderFinalResult(score, outcome, onPlayAgain)
+      // Show a tiny banner so the user sees something happened.
+      showReviveErrorToast(resp.error ?? 'unknown_error')
+      startCountdown()
+    } catch (err) {
+      console.warn('[ResultScreen] paid revive threw:', err, currency)
+      if (btn) {
+        btn.disabled = false
+        btn.innerHTML = originalLabel
+      }
+      showReviveErrorToast(err instanceof Error ? err.message : 'unknown')
+      startCountdown()
     }
   }
 
