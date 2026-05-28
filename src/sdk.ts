@@ -31,6 +31,8 @@ let _sessionToken: string = ''
 let _userId: string = ''
 let _gameId: string = ''
 let _proofOfPlayToken: string = ''
+let _holderTier: HolderTier = 'initiate'
+let _dailyPlaysRemaining: number = 3
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,9 @@ export interface SDKError {
 }
 export type SDKResponse<T> = SDKResult<T> | SDKError
 
+// Holder tier levels — maps to YODA balance thresholds on the platform.
+export type HolderTier = 'initiate' | 'padawan' | 'knight' | 'master' | 'grandmaster'
+
 export interface SessionData {
   user_id: string
   display_name: string
@@ -52,6 +57,8 @@ export interface SessionData {
   is_featured_game_today: boolean
   proof_of_play_token: string
   session_expires_at: string
+  // TODO: backend must populate holder_tier in session response
+  holder_tier?: HolderTier
 }
 
 export interface EntryData {
@@ -184,6 +191,9 @@ export async function initSession(): Promise<SDKResponse<SessionData>> {
   if (result.success) {
     _proofOfPlayToken = result.data.proof_of_play_token
     _userId = _userId || result.data.user_id
+    // TODO: backend must populate holder_tier in session response
+    _holderTier = result.data.holder_tier ?? 'initiate'
+    _dailyPlaysRemaining = result.data.daily_plays_remaining
   }
   return result
 }
@@ -324,8 +334,30 @@ window.addEventListener('message', (event: MessageEvent) => {
   handler?.(data)
 })
 
+/**
+ * Request a purchase — convenience alias for `purchase` with (description, currency)
+ * parameter order matching arcade UI call-sites.
+ * item_type: 'cosmetic_skin' | 'extra_play' | 'tournament_entry'
+ * currency:  'TON' | 'Stars' | 'YODA'
+ */
+export async function requestPurchase(
+  itemType: 'cosmetic_skin' | 'extra_play' | 'tournament_entry',
+  itemId: string,
+  price: number,
+  description: string,
+  currency: 'TON' | 'Stars' | 'YODA',
+): Promise<SDKResponse<PurchaseData>> {
+  return purchase(itemType, itemId, price, currency, description)
+}
+
 // ── Accessors ────────────────────────────────────────────────────────────────
 
 export function getGameId(): string  { return _gameId }
 export function getUserId(): string  { return _userId }
 export function hasToken(): boolean  { return _sessionToken.length > 0 }
+
+/** Current holder tier — defaults 'initiate' until session resolves or if backend omits field. */
+export function getHolderTier(): HolderTier { return _holderTier }
+
+/** Daily plays remaining — set from session response; defaults 3 (initiate cap). */
+export function getDailyPlaysRemaining(): number { return _dailyPlaysRemaining }

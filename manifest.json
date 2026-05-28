@@ -12,6 +12,19 @@
   "max_score": 5000,
   "perfect_score_achievable": false,
   "play_duration_range_seconds": [10, 300],
+  "yoda_tier_perks": {
+    "_comment": "Mirror of platform default (see ARCADE_ECONOMICS.md §3.2). Aligned with babyyoda-bot Training Temple HOLDER_TIER_SPAR_CAP.",
+    "daily_plays": {"initiate": 3, "padawan": 4, "knight": 5, "master": 6, "grandmaster": 7},
+    "free_revives_per_day": {"initiate": 0, "padawan": 0, "knight": 1, "master": 2, "grandmaster": 3},
+    "cosmetic_discount_pct": {"initiate": 0, "padawan": 5, "knight": 15, "master": 20, "grandmaster": 25},
+    "trophy_midi_bonus_pct": {"initiate": 0, "padawan": 5, "knight": 15, "master": 25, "grandmaster": 40}
+  },
+  "pricing": {
+    "revive": {"ton": 0.5, "stars": 50, "yoda": 250},
+    "extra_play": {"ton": 0.3, "stars": 30, "yoda": 150},
+    "cosmetic_skin": {"ton": 1.0, "stars": 100, "yoda": 450},
+    "premium_cosmetic": {"ton": 5.0, "stars": 500, "yoda": 2300}
+  },
   "studio_trophies": [
     {
       "trophy_id": "rookie_swampling",
