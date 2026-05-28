@@ -14,7 +14,7 @@
  */
 
 import * as sdk from '../sdk.js'
-import type { WalletBinding } from '../sdk.js'
+
 import { type HolderTier } from '../sdk.js'
 import { tgHaptic, tgMainButton } from '../tg.js'
 import { getGameOverQuote, reviveGame } from '../game/index.js'
@@ -77,6 +77,35 @@ function incrementFreeRevivesUsed(): void {
   localStorage.setItem(freeReviveKey(), String(getFreeRevivesUsedToday() + 1))
 }
 
+// -- Pending extra-play purchase (single-use, stashed across runs) -------------
+//
+// When the player buys an extra play, the backend purchase row is created in
+// 'paid_pending' status. The next /submit MUST include the purchase id so the
+// backend can consume the slot. We persist via localStorage so the purchase
+// survives the iframe/page reload between purchase and run-complete.
+
+const PENDING_EXTRA_PLAY_KEY = 'swamp_runner_pending_extra_play'
+
+function stashPendingExtraPlay(purchaseId: string): void {
+  try { localStorage.setItem(PENDING_EXTRA_PLAY_KEY, purchaseId) } catch { /* */ }
+}
+
+/** Read + clear the pending purchase id. Single-use by design. */
+function consumePendingExtraPlay(): string | undefined {
+  try {
+    const id = localStorage.getItem(PENDING_EXTRA_PLAY_KEY)
+    if (id) {
+      localStorage.removeItem(PENDING_EXTRA_PLAY_KEY)
+      return id
+    }
+  } catch { /* */ }
+  return undefined
+}
+
+export function hasPendingExtraPlay(): boolean {
+  try { return !!localStorage.getItem(PENDING_EXTRA_PLAY_KEY) } catch { return false }
+}
+
 // -- Public entry point -------------------------------------------------------
 
 export function showResultScreen(
@@ -88,8 +117,20 @@ export function showResultScreen(
   if (!_el) return
   _el.classList.remove('hidden')
 
-  // Show revive offer first for loss runs, unless player already revived this run
-  if (outcome === 'loss' && !_hasRevived) {
+  // Show revive offer ONLY if the player has a free revive available this
+  // run (tier-granted, 0/0/1/2/3 per day). Paid revives are intentionally
+  // not offered — they'd be P2W on the score axis. Players who want more
+  // attempts buy extra PLAYS from the title screen instead, which gives a
+  // fresh ranked run rather than extending an existing one. Each player
+  // tops out at the same universal daily ceiling (7 plays/game) regardless
+  // of wallet depth.
+  const tier        = sdk.getHolderTier()
+  const freePerDay  = FREE_REVIVES_PER_DAY[tier]
+  const freeUsed    = getFreeRevivesUsedToday()
+  const eligibleForFreeRevive =
+    outcome === 'loss' && !_hasRevived && freePerDay > 0 && freeUsed < freePerDay
+
+  if (eligibleForFreeRevive) {
     void renderReviveOffer(score, outcome, onPlayAgain, onRevive)
   } else {
     renderFinalResult(score, outcome, onPlayAgain)
@@ -123,13 +164,7 @@ async function renderReviveOffer(
   const tier          = sdk.getHolderTier()
   const freePerDay    = FREE_REVIVES_PER_DAY[tier]
   const freeUsed      = getFreeRevivesUsedToday()
-  const hasFreeRevive = freePerDay > 0 && freeUsed < freePerDay
   const isLowTier     = tier === 'initiate' || tier === 'padawan'
-
-  // Fetch wallet binding to show 🔗 indicator on TON/YODA buttons.
-  // Fire-and-forget -- buttons render neutral first, then update after fetch.
-  let walletBinding: WalletBinding | null = null
-  const bindingPromise = sdk.getWalletBinding().then(b => { walletBinding = b }).catch(() => {})
 
   _el.innerHTML = `
     <div class="result-scroll">
@@ -142,23 +177,10 @@ async function renderReviveOffer(
         <div class="revive-timer-label" id="revive-timer">7</div>
 
         <div class="revive-buttons">
-          ${hasFreeRevive ? `
-            <button class="btn btn-success swamp-btn revive-btn revive-btn-free" id="revive-free">
-              🎁 Use Free Revive
-              <span class="revive-btn-sub">${freeUsed + 1}/${freePerDay} used today</span>
-            </button>
-          ` : `
-            <button class="btn btn-primary swamp-btn revive-btn" id="revive-ton">
-              0.5 TON
-            </button>
-            <button class="btn btn-primary swamp-btn revive-btn" id="revive-stars">
-              50 ⭐
-            </button>
-            <button class="btn btn-primary swamp-btn revive-btn" id="revive-yoda">
-              250 YODA
-              <span class="revive-discount-badge">−$0.04 vs TON</span>
-            </button>
-          `}
+          <button class="btn btn-success swamp-btn revive-btn revive-btn-free" id="revive-free">
+            🎁 Use Free Revive
+            <span class="revive-btn-sub">${freeUsed + 1}/${freePerDay} used today</span>
+          </button>
         </div>
 
         ${isLowTier ? `
@@ -167,28 +189,10 @@ async function renderReviveOffer(
           </div>
         ` : ''}
 
-        <button class="btn btn-ghost revive-skip" id="revive-skip">Skip revive →</button>
+        <button class="btn btn-ghost revive-skip" id="revive-skip">Skip →</button>
       </div>
     </div>
   `
-
-  // After wallet fetch resolves, decorate TON/YODA buttons with 🔗 if unbound.
-  if (!hasFreeRevive) {
-    void bindingPromise.then(() => {
-      if (walletBinding === null) {
-        const tonBtn  = document.getElementById('revive-ton')
-        const yodaBtn = document.getElementById('revive-yoda')
-        if (tonBtn)  {
-          tonBtn.classList.add('wallet-required')
-          tonBtn.innerHTML = '🔗 0.5 TON'
-        }
-        if (yodaBtn) {
-          yodaBtn.classList.add('wallet-required')
-          yodaBtn.innerHTML = '🔗 250 YODA<span class="revive-discount-badge">−$0.04 vs TON</span>'
-        }
-      }
-    })
-  }
 
   // 7-second countdown
   let secsLeft = 7
@@ -212,93 +216,6 @@ async function renderReviveOffer(
     if (autoTimer) clearInterval(autoTimer)
   }
 
-  /**
-   * Show fallback toast + dim TON/YODA buttons when wallet is dismissed.
-   * Stars button stays enabled and is highlighted as primary.
-   */
-  function degradeToStars(): void {
-    const tonBtn   = document.getElementById('revive-ton')  as HTMLButtonElement | null
-    const yodaBtn  = document.getElementById('revive-yoda') as HTMLButtonElement | null
-    const starsBtn = document.getElementById('revive-stars') as HTMLButtonElement | null
-
-    if (tonBtn)  { tonBtn.disabled  = true; tonBtn.classList.add('disabled-no-wallet') }
-    if (yodaBtn) { yodaBtn.disabled = true; yodaBtn.classList.add('disabled-no-wallet') }
-    if (starsBtn) starsBtn.classList.add('btn-success')  // promote Stars to primary
-
-    // Toast
-    const buttonsEl = _el?.querySelector('.revive-buttons')
-    if (buttonsEl && !_el?.querySelector('.revive-fallback-toast')) {
-      const toast = document.createElement('div')
-      toast.className = 'revive-fallback-toast'
-      toast.textContent = 'Wallet not connected \u2014 Stars works without'
-      buttonsEl.insertAdjacentElement('afterend', toast)
-    }
-  }
-
-  /** Inline error banner under the revive buttons. Auto-dismisses after 4s. */
-  function showReviveErrorToast(msg: string): void {
-    const buttonsEl = _el?.querySelector('.revive-buttons')
-    if (!buttonsEl) return
-    // Remove any prior toast so we don't stack.
-    _el?.querySelector('.revive-error-toast')?.remove()
-    const toast = document.createElement('div')
-    toast.className = 'revive-fallback-toast revive-error-toast'
-    toast.textContent = `Payment failed: ${msg} — try again or pick another currency`
-    buttonsEl.insertAdjacentElement('afterend', toast)
-    setTimeout(() => toast.remove(), 4000)
-  }
-
-  /** Convert a human-readable price to the backend's expected integer units.
-   *  TON: nanoton (1 TON = 1e9 nanoton). Stars / YODA: as-given.
-   */
-  function priceToBackendUnits(c: 'TON' | 'Stars' | 'YODA', amount: number): number {
-    if (c === 'TON') return Math.round(amount * 1_000_000_000)
-    return Math.round(amount)
-  }
-
-  async function handlePaidRevive(currency: 'TON' | 'Stars' | 'YODA', price: number): Promise<void> {
-    cancelCountdown()
-    const btn = document.querySelector<HTMLButtonElement>(`#revive-${currency.toLowerCase()}`)
-    const originalLabel = btn?.innerHTML ?? ''
-    if (btn) { btn.disabled = true; btn.textContent = 'Opening\u2026' }
-
-    try {
-      const backendPrice = priceToBackendUnits(currency, price)
-      const resp = await sdk.requestPurchase('extra_play', 'revive', backendPrice, 'Continue run', currency)
-      if (resp.success) {
-        _hasRevived = true
-        hideResultScreen()
-        doRevive()  // true in-run revival: preserves score / distance / midi
-        return
-      }
-
-      // Failure handling -- almost everything is recoverable; the offer
-      // stays live so the user can retry. Only an explicit purchase row
-      // creation failure falls through to final.
-      console.warn('[ResultScreen] paid revive failed:', resp.error, currency)
-      if (resp.error === 'wallet_required') {
-        degradeToStars()
-      }
-      // Restore the button label/state and restart the countdown so the
-      // user can pick a different currency or retry the same one.
-      if (btn) {
-        btn.disabled = false
-        btn.innerHTML = originalLabel
-      }
-      // Show a tiny banner so the user sees something happened.
-      showReviveErrorToast(resp.error ?? 'unknown_error')
-      startCountdown()
-    } catch (err) {
-      console.warn('[ResultScreen] paid revive threw:', err, currency)
-      if (btn) {
-        btn.disabled = false
-        btn.innerHTML = originalLabel
-      }
-      showReviveErrorToast(err instanceof Error ? err.message : 'unknown')
-      startCountdown()
-    }
-  }
-
   function handleFreeRevive(): void {
     cancelCountdown()
     incrementFreeRevivesUsed()
@@ -307,42 +224,7 @@ async function renderReviveOffer(
     doRevive()  // true in-run revival
   }
 
-  // Recover from a suspend-killed Promise: if we taped a paid revive,
-  // pressed Tonkeeper, signed, and the iframe was suspended during the
-  // round-trip, the await in handlePaidRevive never resolves. On resume
-  // we restore the button so the user can try again or pick another
-  // currency. The backend confirmation worker is independent of the UI
-  // so the user's TX is still tracked if it actually went through.
-  function restoreStuckOpeningButtons(): void {
-    for (const c of ['ton', 'stars', 'yoda'] as const) {
-      const b = document.getElementById(`revive-${c}`) as HTMLButtonElement | null
-      if (!b) continue
-      // 'Opening…' is the only "stuck" label we set on suspend.
-      if (b.disabled && /opening/i.test(b.textContent ?? '')) {
-        b.disabled = false
-        const labels: Record<typeof c, string> = {
-          ton: '0.5 TON',
-          stars: '50 ⭐',
-          yoda: '💎 250 YODA<span class="revive-discount-badge">−$0.04 vs TON</span>',
-        }
-        b.innerHTML = labels[c]
-      }
-    }
-  }
-  function onVisibility(): void {
-    if (document.visibilityState !== 'visible') return
-    restoreStuckOpeningButtons()
-  }
-  document.addEventListener('visibilitychange', onVisibility)
-  // Cleanup when the revive offer goes away; rebound on next renderReviveOffer.
-  const _origHide = () => document.removeEventListener('visibilitychange', onVisibility)
-  // Tie cleanup to the result-screen Skip handler (last button bound below).
-  _el?.querySelector('#revive-skip')?.addEventListener('click', _origHide, { once: true })
-
   // Bind buttons
-  document.getElementById('revive-ton')?.addEventListener('click', () => handlePaidRevive('TON', 0.5))
-  document.getElementById('revive-stars')?.addEventListener('click', () => handlePaidRevive('Stars', 50))
-  document.getElementById('revive-yoda')?.addEventListener('click', () => handlePaidRevive('YODA', 250))
   document.getElementById('revive-free')?.addEventListener('click', handleFreeRevive)
   document.getElementById('revive-skip')?.addEventListener('click', () => {
     cancelCountdown()
@@ -437,11 +319,33 @@ function renderFinalResult(
   })
 
   // Extra-play purchase pill
+  // Charter §4 alignment: buying an extra play grants ONE additional fresh
+  // ranked attempt today, capped at the universal 7/game/day ceiling. The
+  // purchased play is consumed when the next /submit lands.
   document.getElementById('extra-play-purchase')?.addEventListener('click', async () => {
     const btn = document.getElementById('extra-play-purchase') as HTMLButtonElement | null
     if (btn) { btn.disabled = true; btn.textContent = 'Opening…' }
-    await sdk.requestPurchase('extra_play', 'extra_play', 0.3, 'Extra play', 'TON')
-    if (btn) { btn.disabled = false; btn.textContent = '⚡ Buy extra play · 0.3 TON' }
+    const resp = await sdk.requestPurchase(
+      'extra_play',
+      'extra_play',
+      // backend wants nanoton for TON (1 TON = 1e9). 0.3 TON = 3e8.
+      300_000_000,
+      'Extra play',
+      'TON',
+    )
+    if (resp.success && resp.data?.purchase_id) {
+      stashPendingExtraPlay(resp.data.purchase_id)
+      if (btn) {
+        btn.disabled = true
+        btn.textContent = '✓ Extra play purchased — Run Again to use it'
+        btn.classList.add('btn-success')
+      }
+    } else {
+      if (btn) {
+        btn.disabled = false
+        btn.textContent = '⚡ Buy extra play · 0.3 TON'
+      }
+    }
   })
 
   // Cosmetic shelf buy buttons
@@ -608,7 +512,8 @@ function renderResultData(result: sdk.SDKResponse<sdk.ResultData>): void {
     document.getElementById('result-submit')?.addEventListener('click', async () => {
       const btn = document.getElementById('result-submit') as HTMLButtonElement | null
       if (btn) { btn.disabled = true; btn.textContent = 'Banking…' }
-      const submitResp = await sdk.submitResult(data.result_id)
+      const extraPlayPurchaseId = consumePendingExtraPlay()
+      const submitResp = await sdk.submitResult(data.result_id, { extraPlayPurchaseId })
       renderSubmittedState(submitResp)
     })
   } else if (data.submits_remaining <= 0) {

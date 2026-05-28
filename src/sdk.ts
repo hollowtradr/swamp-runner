@@ -114,11 +114,18 @@ export interface SessionData {
   user_id: string
   display_name: string
   midi_balance: number
+  /** Free plays remaining today (tier-granted). 0-3 for Initiate, up to 7 for Grandmaster. */
   daily_plays_remaining: number
+  /** Additional plays the user can purchase today before the universal
+   *  daily ceiling (7) kicks in. Initiate=4, Padawan=3, Knight=2, Master=1, Grandmaster=0. */
+  paid_plays_remaining?: number
+  /** Tier's free quota (3-7). */
+  free_plays_cap?: number
+  /** Universal daily ceiling — always 7 regardless of tier. */
+  absolute_play_cap?: number
   is_featured_game_today: boolean
   proof_of_play_token: string
   session_expires_at: string
-  // TODO: backend must populate holder_tier in session response
   holder_tier?: HolderTier
 }
 
@@ -421,10 +428,13 @@ export async function postResult(
  */
 export async function submitResult(
   resultId: string,
+  opts: { extraPlayPurchaseId?: string } = {},
 ): Promise<SDKResponse<SubmitData>> {
+  const body: Record<string, unknown> = { result_id: resultId }
+  if (opts.extraPlayPurchaseId) body.extra_play_purchase_id = opts.extraPlayPurchaseId
   return apiFetch<SubmitData>('/arcade/v0/submit', {
     method: 'POST',
-    body: JSON.stringify({ result_id: resultId }),
+    body: JSON.stringify(body),
   })
 }
 
