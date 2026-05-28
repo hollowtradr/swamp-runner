@@ -192,7 +192,9 @@ function _buildUpgradeLine(nextInfo: NextTierInfo): string {
   }
 
   // -- Bound --
-  const binding = _cachedBinding
+  // Narrowing: at this point _cachedBinding is non-null (handled the null +
+  // sessionBound case above, and the null + !sessionBound case earlier).
+  const binding = _cachedBinding as WalletBinding
 
   if (!nextInfo) {
     // Grandmaster
