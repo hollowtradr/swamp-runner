@@ -24,6 +24,8 @@ export interface Player {
   hitFlashTimer: number  // seconds of hit flash remaining
   shieldActive: boolean
   shieldTimer: number    // seconds remaining on shield
+  coyoteTimer: number    // seconds of coyote grace remaining after walking off edge (0.1s max)
+  jumpBufferTimer: number  // seconds of jump pre-buffer (0.15s max); auto-fires jump on landing
 }
 
 export type ObstacleType = 'slime' | 'mynock' | 'vine' | 'vine_shadow'
@@ -122,6 +124,11 @@ export const SPEED_BOOST_DURATION = 2.0
 export const PLAYER_WIDTH = 52
 export const PLAYER_HEIGHT = 64
 
+// Physics guardrail constants
+export const COYOTE_TIME_SECS = 0.10   // grace window after walking off edge
+export const JUMP_BUFFER_SECS = 0.15   // pre-buffer window: jump input registered before landing
+export const PLAYER_HITBOX_RADIUS_INSET = 4  // circular hitbox inset from PLAYER_WIDTH/2
+
 export const SCORE_MILESTONES = [100, 500, 1000]
 
 export const YODA_QUOTES: Record<number, string> = {
@@ -158,6 +165,8 @@ export function createInitialState(canvasW: number, canvasH: number): GameState 
       hitFlashTimer: 0,
       shieldActive: false,
       shieldTimer: 0,
+      coyoteTimer: 0,
+      jumpBufferTimer: 0,
     },
     platforms: [],
     obstacles: [],

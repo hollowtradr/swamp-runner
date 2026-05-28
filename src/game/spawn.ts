@@ -8,6 +8,7 @@
 import {
   type GameState,
   type Obstacle,
+  type ObstacleType,
   type Pickup,
   type Platform,
   nextId,
@@ -80,19 +81,26 @@ export function maybeSpawn(state: GameState, canvasW: number): void {
 
   const spawnX = canvasW + 80  // off-screen right
 
-  // --- Ground obstacles ---
+  // --- Ground obstacles (slime) ---
   if (Math.random() < groundObstacleChance(gameTime)) {
-    spawnSlime(state, spawnX)
+    if (!hasObstacleWithin(state, 'slime', spawnX, 200)) {
+      spawnSlime(state, spawnX)
+    }
   }
 
   // --- Mynock ---
   if (Math.random() < mynockChance(gameTime)) {
-    spawnMynock(state, spawnX, state.groundY)
+    const hasNearVine = hasObstacleWithin(state, 'vine', spawnX, 300)
+    if (!hasNearVine) {
+      spawnMynock(state, spawnX, state.groundY)
+    }
   }
 
   // --- Vine with shadow ---
   if (Math.random() < vineChance(gameTime)) {
-    spawnVine(state, spawnX + 60, canvasW)  // slightly further right
+    if (!hasObstacleWithin(state, 'vine', spawnX, 500)) {
+      spawnVine(state, spawnX + 60, canvasW)  // slightly further right
+    }
   }
 
   // --- Log platform ---
@@ -109,6 +117,9 @@ export function maybeSpawn(state: GameState, canvasW: number): void {
   } else if (Math.random() < essenceChance(gameTime)) {
     spawnPickup(state, spawnX, state.groundY, 'essence')
   }
+
+  // Solvability pass: remove impossible triple-stacks and vine bunching
+  validateSolvability(state, canvasW)
 }
 
 // ── Obstacle factories ────────────────────────────────────────────────────────
@@ -211,6 +222,76 @@ function spawnLog(
     sinkOffset: 0,
   }
   state.platforms.push(pl)
+}
+
+// ── Cooldown helper ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if there's already an obstacle of `type` with x-position
+ * within `distance` pixels of `spawnX` (looking at in-flight obstacles on the right side).
+ */
+function hasObstacleWithin(
+  state: GameState,
+  type: ObstacleType,
+  spawnX: number,
+  distance: number,
+): boolean {
+  return state.obstacles.some(
+    (ob) => ob.type === type && ob.x > 0 && Math.abs(ob.x - spawnX) < distance,
+  )
+}
+
+// ── Solvability validator ────────────────────────────────────────────────────
+
+const SOLVABILITY_LOOKAHEAD = 600  // px forward window to inspect
+const COLUMN_BIN_WIDTH = 80        // px bin size for column grouping
+const VINE_MIN_GAP = 150           // px: two vines closer than this = one removed
+
+/**
+ * After each spawn event, scan the upcoming obstacle window and remove
+ * configurations that create unjumpable stacks:
+ *   1. Triple-stack: ground slime + overhead mynock + vine in the same 80px column
+ *      — remove the newest obstacle (highest id).
+ *   2. Two vines within 150px — remove the newer one.
+ */
+function validateSolvability(state: GameState, canvasW: number): void {
+  const lookaheadEnd = canvasW + SOLVABILITY_LOOKAHEAD
+  const inWindow = state.obstacles.filter((ob) => ob.x > 0 && ob.x < lookaheadEnd)
+
+  // — Rule 2: paired vines too close together ————————————————————————
+  const vines = inWindow.filter((ob) => ob.type === 'vine').sort((a, b) => a.x - b.x)
+  for (let i = 0; i < vines.length - 1; i++) {
+    const gap = Math.abs(vines[i + 1].x - vines[i].x)
+    if (gap < VINE_MIN_GAP) {
+      // Remove the newer vine (higher id) and its shadow
+      const newerVine: Obstacle = vines[i].id > vines[i + 1].id ? vines[i] : vines[i + 1]
+      console.debug(`[solvability] removed obstacle id=${newerVine.id}, reason=vine_too_close gap=${gap}px`)
+      state.obstacles = state.obstacles.filter(
+        (ob) => ob.id !== newerVine.id && !(ob.type === 'vine_shadow' && ob.pairId === newerVine.pairId),
+      )
+    }
+  }
+
+  // — Rule 1: triple-stack (slime + mynock + vine in same column) ————————
+  // Group surviving obstacles by column bin
+  const surviving = state.obstacles.filter((ob) => ob.x > 0 && ob.x < lookaheadEnd)
+  const columns = new Map<number, Obstacle[]>()
+  for (const ob of surviving) {
+    const bin = Math.floor(ob.x / COLUMN_BIN_WIDTH)
+    const col = columns.get(bin) ?? []
+    col.push(ob)
+    columns.set(bin, col)
+  }
+
+  for (const [, col] of columns) {
+    const types = new Set(col.map((o) => o.type))
+    if (types.has('slime') && types.has('mynock') && types.has('vine')) {
+      // Triple-stack: remove newest obstacle in this column
+      const newest = col.reduce((prev, cur) => (cur.id > prev.id ? cur : prev))
+      console.debug(`[solvability] removed obstacle id=${newest.id}, reason=triple_stack col_bin=${Math.floor(newest.x / COLUMN_BIN_WIDTH)}`)
+      state.obstacles = state.obstacles.filter((ob) => ob.id !== newest.id)
+    }
+  }
 }
 
 // ── Pickup factory ────────────────────────────────────────────────────────────

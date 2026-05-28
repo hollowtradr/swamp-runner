@@ -18,6 +18,9 @@ import {
   SPEED_BOOST_DURATION,
   PLAYER_WIDTH,
   PLAYER_HEIGHT,
+  COYOTE_TIME_SECS,
+  JUMP_BUFFER_SECS,
+  PLAYER_HITBOX_RADIUS_INSET,
   SCORE_MILESTONES,
   YODA_QUOTES,
   PACE_SCALE,
@@ -88,6 +91,16 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
     p.hitFlashTimer -= dt
   }
 
+  // ── Coyote timer — 100ms grace window after walking off edge ─────────────────
+  if (p.coyoteTimer > 0) {
+    p.coyoteTimer = Math.max(0, p.coyoteTimer - dt)
+  }
+
+  // ── Jump buffer timer — 150ms pre-buffer; auto-fires on landing ───────────────
+  if (p.jumpBufferTimer > 0) {
+    p.jumpBufferTimer = Math.max(0, p.jumpBufferTimer - dt)
+  }
+
   // ── Jump hold: accumulate time ──────────────────────────────────────────────
   if (p.isHoldingJump && p.grounded && p.anim !== 'dead') {
     p.jumpHoldMs += dt * 1000
@@ -134,6 +147,17 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
             pl.sinking = true
           }
         }
+
+        // Jump buffer — player pressed jump just before landing, fire immediately
+        if (p.jumpBufferTimer > 0) {
+          p.jumpBufferTimer = 0
+          p.vy = -JUMP_POWER_MIN
+          p.grounded = false
+          p.onPlatformId = null
+          p.anim = 'jumping'
+          p.doubleJumpAvailable = true
+          onSomePlatform = false
+        }
       } else if (playerFeet > screenTopY && playerFeet < screenTopY + pl.height + 40
                  && p.onPlatformId === pl.id) {
         // Already on this platform
@@ -150,7 +174,10 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
         }
       }
     } else if (p.onPlatformId === pl.id && !horizOverlap) {
-      // Walked off platform edge
+      // Walked off platform edge — start coyote grace window (100ms)
+      if (p.grounded) {
+        p.coyoteTimer = COYOTE_TIME_SECS
+      }
       p.onPlatformId = null
       p.grounded = false
     }
@@ -185,6 +212,15 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
     }
     p.grounded = true; p.doubleJumpAvailable = false
     p.onPlatformId = null
+
+    // Jump buffer — auto-fire if player had a buffered jump input
+    if (p.jumpBufferTimer > 0) {
+      p.jumpBufferTimer = 0
+      p.vy = -JUMP_POWER_MIN
+      p.grounded = false
+      p.anim = 'jumping'
+      p.doubleJumpAvailable = true
+    }
   } else if (!onSomePlatform) {
     p.grounded = false
     if (p.anim === 'running' && p.vy < 0) {
@@ -222,12 +258,10 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
 
   // ── Obstacle collision ────────────────────────────────────────────────────────
   if (p.anim !== 'dead' && p.hitFlashTimer <= 0) {
-    const playerRect = {
-      left:   p.x - PLAYER_WIDTH  / 2 + 8,  // slight hitbox shrink for fairness
-      right:  p.x + PLAYER_WIDTH  / 2 - 8,
-      top:    p.screenY + 8,
-      bottom: p.screenY + PLAYER_HEIGHT - 4,
-    }
+    // Circular hitbox: center + radius forgives diagonal corner grazes
+    const playerCX = p.x
+    const playerCY = p.screenY + PLAYER_HEIGHT / 2
+    const playerR  = PLAYER_WIDTH / 2 - PLAYER_HITBOX_RADIUS_INSET
 
     for (const ob of state.obstacles) {
       if (ob.type === 'vine_shadow') continue  // shadow is visual only
@@ -242,7 +276,7 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
         bottom: ob.y + ob.height - 4,
       }
 
-      if (rectsOverlap(playerRect, obRect)) {
+      if (circleRectOverlap(playerCX, playerCY, playerR, obRect)) {
         if (p.shieldActive) {
           // Shield absorbs one hit
           p.shieldActive = false
@@ -267,7 +301,7 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
     const pickupW = pk.type === 'bibo' ? 40 : (pk.type === 'holocron' ? 22 : 14)
     const pickupH = pk.type === 'bibo' ? 30 : (pk.type === 'holocron' ? 22 : 14)
 
-    if (dx < PLAYER_WIDTH / 2 + pickupW && dy < PLAYER_HEIGHT / 2 + pickupH) {
+    if (dx < PLAYER_WIDTH / 2 + pickupW - 2 && dy < PLAYER_HEIGHT / 2 + pickupH) {
       collectPickup(state, pk)
     }
 
@@ -322,13 +356,28 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
  * - Tap on ground → instant jump at JUMP_POWER_MIN
  * - Hold on ground → accumulate power, release for higher jump (up to JUMP_POWER_MAX)
  * - Tap in air (after first jump) → double-jump at JUMP_POWER_MIN (once per air time)
- * - Coyote time: 100ms grace after walking off edge
+ * - Coyote time: 100ms grace after walking off edge — fires at JUMP_POWER_MIN (tap-strength)
+ * - Jump buffer: 150ms pre-input window; auto-fires on landing
  */
 export function startJump(state: GameState): void {
   const p = state.player
   if (p.anim === 'dead' || state.phase !== 'playing') return
 
-  // Double-jump: tap while in the air
+  const canCoyoteJump = !p.grounded && p.coyoteTimer > 0
+
+  // Coyote jump: fire immediately at tap-strength (no hold accumulation)
+  if (canCoyoteJump) {
+    p.coyoteTimer = 0  // consume coyote window
+    p.vy = -JUMP_POWER_MIN
+    p.grounded = false
+    p.onPlatformId = null
+    p.anim = 'jumping'
+    p.doubleJumpAvailable = true
+    p.isHoldingJump = false
+    return
+  }
+
+  // Double-jump: tap while in the air (no coyote available)
   if (!p.grounded && p.doubleJumpAvailable) {
     p.vy = -JUMP_POWER_MIN * 0.85  // slightly weaker than ground jump
     p.doubleJumpAvailable = false
@@ -336,8 +385,13 @@ export function startJump(state: GameState): void {
     return
   }
 
-  if (!p.grounded) return
+  // In air with no options: buffer the jump input for when we land
+  if (!p.grounded && !p.doubleJumpAvailable) {
+    p.jumpBufferTimer = JUMP_BUFFER_SECS
+    return
+  }
 
+  // Grounded: start hold accumulation (power fires in releaseJump)
   p.isHoldingJump = true
   p.jumpHoldMs = 0
 }
@@ -368,11 +422,22 @@ function computeTargetSpeed(gameTime: number): number {
   return Math.min(MAX_SCROLL_SPEED, 460 + (gameTime - 60) * 1.5)
 }
 
-function rectsOverlap(
-  a: { left: number; right: number; top: number; bottom: number },
-  b: { left: number; right: number; top: number; bottom: number },
+/**
+ * Circular player hitbox vs axis-aligned obstacle rect.
+ * Clamps circle center to the nearest point on the rect, then checks distance < radius.
+ * Forgives diagonal corner grazes that rect-vs-rect would falsely count as hits.
+ */
+function circleRectOverlap(
+  cx: number,
+  cy: number,
+  r: number,
+  rect: { left: number; right: number; top: number; bottom: number },
 ): boolean {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+  const nearX = Math.max(rect.left, Math.min(cx, rect.right))
+  const nearY = Math.max(rect.top,  Math.min(cy, rect.bottom))
+  const dx = cx - nearX
+  const dy = cy - nearY
+  return dx * dx + dy * dy < r * r
 }
 
 function removeObstacle(state: GameState, id: number): void {
