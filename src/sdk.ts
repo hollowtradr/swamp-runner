@@ -272,10 +272,11 @@ function getTonConnect(): TonConnectUI {
   if (!_tcUI) {
     _tcUI = new TonConnectUI({
       manifestUrl: 'https://swamp-runner.vercel.app/tonconnect-manifest.json',
-      // Return user to the Telegram mini-app after wallet approval (instead of opening manifestUrl in Chrome).
-      // Resolves to the launching bot when running inside Telegram WebApp; harmless no-op outside Telegram.
+      // Return user back into the Sticker Galaxy mini-app on the Swamp Runner page,
+      // not out to Chrome and not just the bot DM. The mini-app's root page reads
+      // start_param and routes `arcade_<gameId>` to /arcade/play/<gameId>.
       actionsConfiguration: {
-        twaReturnUrl: 'https://t.me/babyyodatonbot',
+        twaReturnUrl: 'https://t.me/babyyodatonbot?startapp=arcade_swamp_runner',
       },
     })
   }
