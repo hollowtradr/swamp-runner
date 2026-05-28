@@ -58,9 +58,14 @@ export function mountTitlePerksCard(parentEl: HTMLElement): void {
   // onTierChange already maintains the SDK's cached binding; we just re-fetch
   // to get the full record (balance_yoda, proof status, etc.).
   sdk.onTierChange(() => {
+    // Tonkeeper round-trip suspended the iframe — any in-flight Promise
+    // from _handleConnectWallet died with it. Clear the connecting guard so
+    // the next render shows the correct bound/unbound CTA instead of
+    // 'Connecting…' forever.
+    _connecting = false
     sdk.getWalletBinding()
       .then((binding) => { _cachedBinding = binding; _renderCard() })
-      .catch(() => {})
+      .catch(() => { _renderCard() })
   })
 
   // Also refresh whenever the page becomes visible again — covers the
@@ -69,17 +74,21 @@ export function mountTitlePerksCard(parentEl: HTMLElement): void {
   // was active.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      // Same suspend-kills-promise reasoning as onTierChange above. If we
+      // came back to a visible page, the connect handler's await is dead.
+      _connecting = false
       sdk.getWalletBinding()
         .then((binding) => {
-          // Only re-render if the bound state actually changed to avoid flicker
           const wasBound = _cachedBinding != null
           const isBound = binding != null
           if (wasBound !== isBound || binding?.tier !== _cachedBinding?.tier) {
             _cachedBinding = binding
-            _renderCard()
           }
+          // Always re-render to clear stuck 'Connecting…' even when binding
+          // didn't actually change.
+          _renderCard()
         })
-        .catch(() => {})
+        .catch(() => { _renderCard() })
     }
   })
 }
