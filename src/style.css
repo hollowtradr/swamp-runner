@@ -85,10 +85,14 @@ html, body {
 }
 
 /* When the title content is shorter than the viewport, push it down to keep
-   the visual centering. When it overflows, normal flow takes over. */
+   the visual centering. When it overflows, normal flow takes over (no auto
+   margins collapse content above the top). */
 #title-screen > .title-content {
-  margin: auto 0;
+  margin-top: auto;
+  margin-bottom: auto;
   padding-bottom: 16px;
+  /* Prevent flex auto margins from clipping content shorter than viewport */
+  flex-shrink: 0;
 }
 
 #title-screen.fade-out {

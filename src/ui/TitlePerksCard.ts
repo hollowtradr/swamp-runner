@@ -52,6 +52,36 @@ export function mountTitlePerksCard(parentEl: HTMLElement): void {
     _cachedBinding = null  // treat as unbound on error
     _renderCard()
   })
+
+  // Auto-refresh when the shell broadcasts a tier change (e.g. after the user
+  // approves in Tonkeeper and the wallet redirect lands back in the mini-app).
+  // onTierChange already maintains the SDK's cached binding; we just re-fetch
+  // to get the full record (balance_yoda, proof status, etc.).
+  sdk.onTierChange(() => {
+    sdk.getWalletBinding()
+      .then((binding) => { _cachedBinding = binding; _renderCard() })
+      .catch(() => {})
+  })
+
+  // Also refresh whenever the page becomes visible again — covers the
+  // Tonkeeper round-trip case where the iframe was suspended during approval
+  // and the SG_TIER_CHANGED broadcast may have fired before our listener
+  // was active.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      sdk.getWalletBinding()
+        .then((binding) => {
+          // Only re-render if the bound state actually changed to avoid flicker
+          const wasBound = _cachedBinding != null
+          const isBound = binding != null
+          if (wasBound !== isBound || binding?.tier !== _cachedBinding?.tier) {
+            _cachedBinding = binding
+            _renderCard()
+          }
+        })
+        .catch(() => {})
+    }
+  })
 }
 
 /** Re-render the card; re-fetches wallet binding from SDK. */
