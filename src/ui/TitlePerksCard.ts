@@ -93,7 +93,20 @@ export async function refreshTitlePerksCard(): Promise<void> {
 function _renderCard(): void {
   if (!_cardEl) return
 
-  const tier        = sdk.getHolderTier()
+  // Tier source-of-truth precedence:
+  //   1. wallet RPC binding (authoritative, refreshed after bind/disconnect/refresh)
+  //   2. session tier from /session (page-load snapshot; only used if binding unknown)
+  //   3. 'initiate' default
+  // We never let session tier override an explicit null binding — that would
+  // lie about a user who just disconnected.
+  let tier: HolderTier
+  if (_cachedBinding) {
+    tier = _cachedBinding.tier
+  } else if (_cachedBinding === null) {
+    tier = 'initiate'  // explicitly unbound
+  } else {
+    tier = sdk.getHolderTier()  // still loading (undefined)
+  }
   const tierLabel   = TIER_LABELS[tier]
   const tierEmoji   = TIER_EMOJIS[tier]
   const dailyPlays  = DAILY_PLAYS[tier]
@@ -159,17 +172,14 @@ function _buildUpgradeLine(nextInfo: NextTierInfo): string {
     `
   }
 
-  // Still loading initial binding fetch — but if the session already knows the
-  // user is non-initiate, they're definitely bound. Skip the spinner.
-  const sessionTier = sdk.getHolderTier()
-  const sessionBound = sessionTier !== 'initiate'
-
-  if (_cachedBinding === undefined && !sessionBound) {
+  // Still loading initial binding fetch
+  if (_cachedBinding === undefined) {
     return `<div class="title-perks-upgrade-loading">Checking wallet…</div>`
   }
 
-  // -- Unbound: prompt connect (only when both session AND wallet RPC agree) --
-  if (_cachedBinding === null && !sessionBound) {
+  // Source-of-truth: the wallet RPC binding. Session tier is a snapshot from
+  // page-load time and can lie after a disconnect; do not fall back to it.
+  if (_cachedBinding === null) {
     return `
       <button class="title-perks-upgrade-btn title-perks-connect-btn" id="perks-connect-wallet-btn">
         🔗 Check your tier &mdash; Connect wallet
@@ -177,24 +187,10 @@ function _buildUpgradeLine(nextInfo: NextTierInfo): string {
     `
   }
 
-  // Session says bound but wallet RPC returned null/undefined — surface the
-  // upgrade CTA based on session tier so the UI never lies about a Grandmaster
-  // user. The Settings sheet remains the source of truth for managing the bind.
-  if (!_cachedBinding && sessionBound) {
-    if (!nextInfo) {
-      return `<div class="title-perks-max">👑 Max tier — thank you</div>`
-    }
-    return `
-      <a class="title-perks-upgrade-btn" href="${YODA_DEX_URL}" target="_blank" rel="noopener noreferrer">
-        ⬆ Upgrade to ${nextInfo.nextTier} (${nextInfo.holdReq} YODA) →
-      </a>
-    `
-  }
-
   // -- Bound --
-  // Narrowing: at this point _cachedBinding is non-null (handled the null +
-  // sessionBound case above, and the null + !sessionBound case earlier).
-  const binding = _cachedBinding as WalletBinding
+  // Narrowing: at this point _cachedBinding is non-null (both null and
+  // undefined branches returned early above).
+  const binding = _cachedBinding
 
   if (!nextInfo) {
     // Grandmaster
