@@ -271,7 +271,7 @@ async function walletFetch<T>(
 function getTonConnect(): TonConnectUI {
   if (!_tcUI) {
     _tcUI = new TonConnectUI({
-      manifestUrl: 'https://stickergalaxy.io/tonconnect-manifest.json',
+      manifestUrl: 'https://swamp-runner.vercel.app/tonconnect-manifest.json',
     })
   }
   return _tcUI
