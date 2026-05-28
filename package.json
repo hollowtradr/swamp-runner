@@ -15,7 +15,6 @@
     "vite": "^5.2.11"
   },
   "dependencies": {
-    "@tonconnect/ui": "^2.0.0",
     "phaser": "^3.90.0"
   }
 }

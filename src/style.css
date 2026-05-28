@@ -75,10 +75,20 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* flex-start (not center) so taller content can scroll; center alignment
+     would clip top/bottom on viewports too short for all elements. */
+  justify-content: flex-start;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   transition: opacity 0.3s ease;
-  padding: max(40px, env(safe-area-inset-top)) 0 max(40px, env(safe-area-inset-bottom)) 0;
+  padding: max(32px, env(safe-area-inset-top)) 0 calc(env(safe-area-inset-bottom, 0px) + 32px) 0;
+}
+
+/* When the title content is shorter than the viewport, push it down to keep
+   the visual centering. When it overflows, normal flow takes over. */
+#title-screen > .title-content {
+  margin: auto 0;
+  padding-bottom: 16px;
 }
 
 #title-screen.fade-out {
@@ -1178,6 +1188,7 @@ html, body {
 /* ── Title perks card (tier chrome on title screen) ─────────── */
 .title-perks-card {
   width: 100%;
+  margin-top: 8px; /* breathing room below the Leaderboard button */
   background: rgba(240, 220, 160, 0.92);
   border: 2px solid rgba(144, 168, 120, 0.45);
   border-radius: var(--radius);
@@ -1186,6 +1197,7 @@ html, body {
   flex-direction: column;
   gap: 10px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 /* Tier-colored borders — mirrors HUD badge modifiers */
