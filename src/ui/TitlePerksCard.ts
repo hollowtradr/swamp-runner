@@ -159,17 +159,35 @@ function _buildUpgradeLine(nextInfo: NextTierInfo): string {
     `
   }
 
-  // Still loading initial binding fetch
-  if (_cachedBinding === undefined) {
+  // Still loading initial binding fetch — but if the session already knows the
+  // user is non-initiate, they're definitely bound. Skip the spinner.
+  const sessionTier = sdk.getHolderTier()
+  const sessionBound = sessionTier !== 'initiate'
+
+  if (_cachedBinding === undefined && !sessionBound) {
     return `<div class="title-perks-upgrade-loading">Checking wallet…</div>`
   }
 
-  // -- Unbound: prompt connect regardless of cached tier --
-  if (_cachedBinding === null) {
+  // -- Unbound: prompt connect (only when both session AND wallet RPC agree) --
+  if (_cachedBinding === null && !sessionBound) {
     return `
       <button class="title-perks-upgrade-btn title-perks-connect-btn" id="perks-connect-wallet-btn">
         🔗 Check your tier &mdash; Connect wallet
       </button>
+    `
+  }
+
+  // Session says bound but wallet RPC returned null/undefined — surface the
+  // upgrade CTA based on session tier so the UI never lies about a Grandmaster
+  // user. The Settings sheet remains the source of truth for managing the bind.
+  if (!_cachedBinding && sessionBound) {
+    if (!nextInfo) {
+      return `<div class="title-perks-max">👑 Max tier — thank you</div>`
+    }
+    return `
+      <a class="title-perks-upgrade-btn" href="${YODA_DEX_URL}" target="_blank" rel="noopener noreferrer">
+        ⬆ Upgrade to ${nextInfo.nextTier} (${nextInfo.holdReq} YODA) →
+      </a>
     `
   }
 
