@@ -148,7 +148,18 @@ function _renderCard(): void {
 type NextTierInfo = { nextTier: string; holdReq: string; nextTierKey: HolderTier } | null
 
 function _buildUpgradeLine(nextInfo: NextTierInfo): string {
-  // Still loading
+  // In-flight connect attempt — show a disabled "Connecting…" button regardless
+  // of cached binding state. Once promptConnectWallet resolves, the handler
+  // clears _connecting and re-renders to the correct bound/unbound CTA.
+  if (_connecting) {
+    return `
+      <button class="title-perks-upgrade-btn title-perks-connect-btn" disabled>
+        Connecting…
+      </button>
+    `
+  }
+
+  // Still loading initial binding fetch
   if (_cachedBinding === undefined) {
     return `<div class="title-perks-upgrade-loading">Checking wallet…</div>`
   }
@@ -187,21 +198,36 @@ function _buildUpgradeLine(nextInfo: NextTierInfo): string {
   `
 }
 
+/** Module-level guard so visibility-change / SG_TIER_CHANGED re-renders
+ *  do not flicker the button back to "Connect wallet" while an in-flight
+ *  promptConnectWallet is still pending. */
+let _connecting = false
+
 async function _handleConnectWallet(): Promise<void> {
   if (!_cardEl) return
+  if (_connecting) return  // ignore double-tap
+  _connecting = true
 
-  // Swap button to loading state
-  const btn = _cardEl.querySelector<HTMLButtonElement>('#perks-connect-wallet-btn')
-  if (btn) { btn.disabled = true; btn.textContent = 'Connecting…' }
-
-  const result = await sdk.promptConnectWallet({ reason: 'check_tier' })
-
-  if (result.success) {
-    _cachedBinding = await sdk.getWalletBinding().catch(() => null)
-  } else {
-    // Re-enable the connect button on dismiss / error
-    _cachedBinding = null
-  }
-
+  // Swap button to loading state via re-render (single source of truth).
+  // _buildUpgradeLine consults _connecting to render "Connecting…".
   _renderCard()
+
+  try {
+    const result = await sdk.promptConnectWallet({ reason: 'check_tier' })
+    // Always refetch from SDK — do not assume result shape; the shell may
+    // have already broadcast SG_TIER_CHANGED with the canonical binding.
+    if (result.success) {
+      _cachedBinding = await sdk.getWalletBinding().catch(() => _cachedBinding ?? null)
+    } else if (result.error === 'shell_required' || result.error === 'wallet_no_tonproof' || result.error === 'malformed_proof_client') {
+      // Surface a clear unbound state — do not silently swallow the error.
+      _cachedBinding = null
+      console.warn('[wallet] connect failed:', result.error, result)
+    } else {
+      // Dismissed or transient error: keep whatever the SDK now reports.
+      _cachedBinding = await sdk.getWalletBinding().catch(() => null)
+    }
+  } finally {
+    _connecting = false
+    _renderCard()
+  }
 }
