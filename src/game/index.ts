@@ -11,7 +11,7 @@
  */
 
 import Phaser from 'phaser'
-import { createInitialState, type GameState, GAME_OVER_QUOTES } from './state.js'
+import { createInitialState, applyRevive, type GameState, GAME_OVER_QUOTES } from './state.js'
 import { SwampScene } from './phaser-scene.js'
 
 type GameEndCallback = (score: number, outcome: 'win' | 'loss') => void
@@ -84,6 +84,31 @@ export function stopGame(): void {
     _game = null
   }
   _state = null
+}
+
+/**
+ * Revive an ended run in place: keep score, distance, midi, gameTime, world
+ * scroll. Reset only the player + clear a safety window of nearby hazards.
+ *
+ * Returns true on success, false if there is no current ended run to revive
+ * (e.g. game was already stopped or never started).
+ */
+export function reviveGame(): boolean {
+  if (!_state || !_game) return false
+  // Apply state-level revive (player, safety bubble, shield).
+  applyRevive(_state)
+  // Drop scene-level guards so the gameEnd event can fire again on next death.
+  const scene = _game.scene.getScene('SwampScene') as SwampScene | null
+  if (scene && typeof scene.resetForRevive === 'function') {
+    scene.resetForRevive()
+  }
+  // Re-arm a one-shot gameEnd listener so the next death surfaces correctly.
+  _game.events.once('gameEnd', ({ score, outcome }: { score: number; outcome: 'win' | 'loss' }) => {
+    _onEnd?.(score, outcome)
+  })
+  // Finally, flip phase back to 'playing' AFTER guards are cleared.
+  _state.phase = 'playing'
+  return true
 }
 
 export function getGameState(): GameState | null {

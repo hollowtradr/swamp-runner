@@ -130,6 +130,14 @@ export class SwampScene extends Phaser.Scene {
     this.prevAnim = 'running'; this.bobOffset = 0
   }
 
+  /**
+   * Called by reviveGame() in game/index.ts after the state-level revive.
+   * Clears the one-shot gameEnd guard so the next death emits cleanly.
+   */
+  resetForRevive(): void {
+    this.gameEndFired = false
+  }
+
   preload(): void {
     // Silence 404s for missing sprites gracefully
     this.load.on('loaderror', (_file: unknown) => { /* ignore */ })

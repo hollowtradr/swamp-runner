@@ -17,7 +17,7 @@ import * as sdk from '../sdk.js'
 import type { WalletBinding } from '../sdk.js'
 import { type HolderTier } from '../sdk.js'
 import { tgHaptic, tgMainButton } from '../tg.js'
-import { getGameOverQuote } from '../game/index.js'
+import { getGameOverQuote, reviveGame } from '../game/index.js'
 import { getSprites } from '../game/assets.js'
 import {
   TIER_LABELS,
@@ -83,13 +83,14 @@ export function showResultScreen(
   score: number,
   outcome: 'win' | 'loss' | 'draw',
   onPlayAgain: () => void,
+  onRevive?: () => void,
 ): void {
   if (!_el) return
   _el.classList.remove('hidden')
 
   // Show revive offer first for loss runs, unless player already revived this run
   if (outcome === 'loss' && !_hasRevived) {
-    void renderReviveOffer(score, outcome, onPlayAgain)
+    void renderReviveOffer(score, outcome, onPlayAgain, onRevive)
   } else {
     renderFinalResult(score, outcome, onPlayAgain)
   }
@@ -105,7 +106,18 @@ async function renderReviveOffer(
   score: number,
   outcome: 'win' | 'loss' | 'draw',
   onPlayAgain: () => void,
+  onRevive?: () => void,
 ): Promise<void> {
+  /** Apply state-level revive + signal main to resume HUD polling. */
+  function doRevive(): void {
+    const ok = reviveGame()
+    if (ok && onRevive) {
+      onRevive()
+    } else {
+      // Fall back to full restart if state revive failed (state was nulled etc.)
+      onPlayAgain()
+    }
+  }
   if (!_el) return
 
   const tier          = sdk.getHolderTier()
@@ -243,7 +255,7 @@ async function renderReviveOffer(
       if (resp.success) {
         _hasRevived = true
         hideResultScreen()
-        onPlayAgain()  // NOTE: true in-run state revival (reset player pos etc.) is game-loop scope
+        doRevive()  // true in-run revival: preserves score / distance / midi
         return
       }
 
@@ -279,7 +291,7 @@ async function renderReviveOffer(
     incrementFreeRevivesUsed()
     _hasRevived = true
     hideResultScreen()
-    onPlayAgain()
+    doRevive()  // true in-run revival
   }
 
   // Bind buttons

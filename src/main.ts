@@ -197,21 +197,40 @@ async function beginGame(session: SessionData | null): Promise<void> {
   showHUD()
   await startGame(onGameEnd)
 
-  // HUD polling (canvas renders the score; DOM HUD shows midi balance)
-  const hudInterval = setInterval(() => {
-    const state = getGameState()
-    updateHUD(state, _midiBalance)
-    if (!state || state.phase === 'ended') clearInterval(hudInterval)
-  }, 150)
+  // HUD polling (canvas renders the score; DOM HUD shows midi balance).
+  // Wrapped in a restartable function so revive can re-arm it after the
+  // first run ended (which auto-clears the interval on 'ended' phase).
+  function startHudPolling(): void {
+    const hudInterval = setInterval(() => {
+      const state = getGameState()
+      updateHUD(state, _midiBalance)
+      if (!state || state.phase === 'ended') clearInterval(hudInterval)
+    }, 150)
+  }
+  startHudPolling()
+  _restartHudPolling = startHudPolling
 }
+
+// HUD polling re-arm hook — set by beginGame, called by onRevive.
+let _restartHudPolling: (() => void) | null = null
 
 function onGameEnd(score: number, outcome: 'win' | 'loss'): void {
   hideHUD()
-  showResultScreen(score, outcome, () => {
-    // Play again → new entry
-    hideResultScreen()
-    beginGame(_currentSession)
-  })
+  showResultScreen(
+    score,
+    outcome,
+    () => {
+      // Play again → new entry (full restart).
+      hideResultScreen()
+      beginGame(_currentSession)
+    },
+    () => {
+      // Revive → resume the same run with player reset + safety bubble.
+      hideResultScreen()
+      showHUD()
+      _restartHudPolling?.()
+    },
+  )
 }
 
 // ── Loading helpers ───────────────────────────────────────────────────────────

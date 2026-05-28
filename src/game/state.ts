@@ -194,3 +194,48 @@ export function createInitialState(canvasW: number, canvasH: number): GameState 
 export function nextId(state: GameState): number {
   return state.idCounter++
 }
+
+/**
+ * Apply a revive to a game-over state. Preserves score, distance, midi,
+ * gameTime, and world scroll position. Resets only the player (back to
+ * running) and clears a safety window of obstacles/pickups so the player
+ * doesn't die on the very next frame.
+ *
+ * Caller is responsible for putting state.phase back to 'playing' AFTER
+ * any scene-level guards (e.g. gameEndFired) have been cleared.
+ */
+export function applyRevive(state: GameState): void {
+  // Reset player to a fresh running state at its standard X.
+  state.player.vy = 0
+  state.player.grounded = true
+  state.player.onPlatformId = null
+  state.player.jumpHoldMs = 0
+  state.player.isHoldingJump = false
+  state.player.doubleJumpAvailable = false
+  state.player.anim = 'running'
+  state.player.hitFlashTimer = 0
+  state.player.coyoteTimer = 0
+  state.player.jumpBufferTimer = 0
+  // Snap to ground baseline -- avoids falling through if player died airborne.
+  state.player.screenY = state.groundY - state.player.height
+
+  // Short invulnerability shield so the player has time to react.
+  state.player.shieldActive = true
+  state.player.shieldTimer = 2.0  // seconds
+
+  // Clear a safety window: any obstacle / pickup ahead of the player within
+  // ~one viewport width gets removed so the revive doesn't drop them right
+  // back into the same hazard pattern that killed them.
+  const safetyMargin = 600  // px ahead
+  state.obstacles = state.obstacles.filter((o) => o.x > state.player.x + safetyMargin)
+  // Keep pickups -- a clean board feels rewarding -- but remove anything
+  // *inside* the safety bubble so the player doesn't auto-vacuum collect.
+  state.pickups = state.pickups.filter(
+    (p) => p.x < state.player.x - 50 || p.x > state.player.x + safetyMargin,
+  )
+
+  // Reset spawn timer so new entities start spawning at normal cadence.
+  state.spawnTimer = 0
+  // Flash the screen so the revive is visually obvious.
+  state.screenFlashTimer = 0.3
+}
