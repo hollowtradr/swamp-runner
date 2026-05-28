@@ -163,11 +163,30 @@ export interface TrophyData {
   description?: string
 }
 
+export interface TonPaymentBlock {
+  to: string
+  amount_nanoton: string
+  comment: string
+  valid_until: number
+}
+
 export interface PurchaseData {
   purchase_id: string
-  payment_url: string
+  status: 'pending' | 'awaiting_payment' | 'paid_pending' | 'paid' | 'expired' | 'failed'
+  payment_url: string | null
+  ton_payment: TonPaymentBlock | null
   studio_credit_ton: number
   message: string
+}
+
+export interface PurchaseStatusData {
+  purchase_id: string
+  status: 'pending' | 'awaiting_payment' | 'paid_pending' | 'paid' | 'expired' | 'failed'
+  currency: string
+  item_type: string
+  item_id: string
+  tx_hash: string | null
+  settled_at: string | null
 }
 
 export interface LeaderboardEntry {
@@ -492,12 +511,21 @@ window.addEventListener('message', (event: MessageEvent) => {
 /**
  * requestPurchase(itemType, itemId, price, description, currency)
  *
- * Route a real-money purchase. For TON and YODA purchases, automatically
- * prompts wallet connect if the player is unbound (JIT wallet-connect).
- * Stars is Telegram-native -- NEVER gated by wallet.
+ * Route a real-money purchase.
  *
- * Returns { success: false, error: 'wallet_required' } when the user
- * dismisses the wallet modal -- callers should gracefully degrade.
+ * - Stars: not yet wired; falls back to legacy purchase row creation.
+ * - TON:   creates a purchase row, prompts wallet connect if needed, signs
+ *          the TX via the platform shell's TonConnect, and returns once the
+ *          backend has marked the row paid_pending. Use getPurchaseStatus()
+ *          to poll for the final 'paid' confirmation (~10–15s).
+ * - YODA:  not yet wired (Phase 3); falls back to legacy purchase row.
+ *
+ * Error codes (returned in SDKError.error):
+ *   - 'wallet_required'   user dismissed wallet connect prompt
+ *   - 'user_rejected'     user rejected the TX in their wallet
+ *   - 'sign_failed'       wallet returned a signing error
+ *   - 'purchase_failed'   backend purchase creation failed
+ *   - 'shell_unavailable' running standalone, no platform shell RPC
  */
 export async function requestPurchase(
   itemType: 'cosmetic_skin' | 'extra_play' | 'tournament_entry',
@@ -507,7 +535,6 @@ export async function requestPurchase(
   currency: 'TON' | 'Stars' | 'YODA',
 ): Promise<SDKResponse<PurchaseData>> {
   // JIT wallet check -- TON and YODA require a bound wallet.
-  // Stars is Telegram-native and walletless; never gate the Stars path.
   if (currency === 'TON' || currency === 'YODA') {
     const binding = await getWalletBinding()
     if (!binding) {
@@ -517,7 +544,92 @@ export async function requestPurchase(
       }
     }
   }
+
+  // Phase 2: full TON payment flow.
+  if (currency === 'TON') {
+    // 1. Create the purchase row — backend returns ton_payment block.
+    const created = await purchase(itemType, itemId, price, currency, description)
+    if (!created.success) return created
+    const tp = created.data.ton_payment
+    if (!tp) {
+      return { success: false, error: 'no_ton_payment_block' }
+    }
+
+    // 2. Ask the platform shell to sign + submit. Shell-owned because only
+    //    the TWA top-level frame has working TonConnect twaReturnUrl context.
+    const signResult = await walletRpc<{
+      success: boolean
+      purchase_id?: string
+      payer_address?: string
+      status?: string
+      error?: string
+      message?: string
+    }>('requestTonPayment', {
+      purchase_id: created.data.purchase_id,
+      ton_payment: tp,
+    }).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg === 'shell_required' ? 'shell_unavailable' : msg }
+    })
+
+    if (!signResult.success) {
+      return {
+        success: false,
+        error: signResult.error ?? 'sign_failed',
+      }
+    }
+
+    // 3. Optimistic: return the purchase row updated to paid_pending. The
+    //    game can immediately grant the item (revive / extra play / etc).
+    //    Use getPurchaseStatus() to poll for the on-chain confirmation.
+    return {
+      success: true,
+      data: {
+        ...created.data,
+        status: 'paid_pending',
+      },
+    }
+  }
+
+  // Stars and YODA: legacy path (stub URL) until their dedicated flows ship.
   return purchase(itemType, itemId, price, currency, description)
+}
+
+/**
+ * Poll for purchase confirmation. Called after requestPurchase returns
+ * paid_pending to wait for the on-chain settlement (~10–15s for TON).
+ *
+ * Backend rows transition: awaiting_payment -> paid_pending -> paid | expired.
+ */
+export async function getPurchaseStatus(
+  purchaseId: string,
+): Promise<SDKResponse<PurchaseStatusData>> {
+  return apiFetch<PurchaseStatusData>(
+    `/arcade/v0/purchase/${encodeURIComponent(purchaseId)}`,
+  )
+}
+
+/**
+ * Convenience: poll getPurchaseStatus every `intervalMs` until status is
+ * terminal (paid / expired / failed) or `timeoutMs` elapses. Returns the
+ * final status row.
+ */
+export async function awaitPurchaseConfirmation(
+  purchaseId: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {},
+): Promise<SDKResponse<PurchaseStatusData>> {
+  const intervalMs = opts.intervalMs ?? 3000
+  const timeoutMs = opts.timeoutMs ?? 60_000
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const res = await getPurchaseStatus(purchaseId)
+    if (!res.success) return res
+    if (res.data.status === 'paid' || res.data.status === 'expired' || res.data.status === 'failed') {
+      return res
+    }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return { success: false, error: 'confirmation_timeout' }
 }
 
 // -- Wallet SDK functions (v0.3.0) --------------------------------------------

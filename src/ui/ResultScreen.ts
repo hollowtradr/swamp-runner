@@ -223,25 +223,52 @@ async function renderReviveOffer(
     }
   }
 
+    /** Convert a human-readable price to the backend's expected integer units.
+   *  TON: nanoton (1 TON = 1e9 nanoton). Stars / YODA: as-given.
+   */
+  function priceToBackendUnits(c: 'TON' | 'Stars' | 'YODA', amount: number): number {
+    if (c === 'TON') return Math.round(amount * 1_000_000_000)
+    return Math.round(amount)
+  }
+
   async function handlePaidRevive(currency: 'TON' | 'Stars' | 'YODA', price: number): Promise<void> {
     cancelCountdown()
     const btn = document.querySelector<HTMLButtonElement>(`#revive-${currency.toLowerCase()}`)
+    const originalLabel = btn?.innerHTML ?? ''
     if (btn) { btn.disabled = true; btn.textContent = 'Opening\u2026' }
 
     try {
-      const resp = await sdk.requestPurchase('extra_play', 'revive', price, 'Continue run', currency)
+      const backendPrice = priceToBackendUnits(currency, price)
+      const resp = await sdk.requestPurchase('extra_play', 'revive', backendPrice, 'Continue run', currency)
       if (resp.success) {
         _hasRevived = true
         hideResultScreen()
         onPlayAgain()  // NOTE: true in-run state revival (reset player pos etc.) is game-loop scope
-      } else if (!resp.success && resp.error === 'wallet_required') {
-        // User dismissed wallet modal -- gracefully degrade, don't go to final result
-        degradeToStars()
-        startCountdown()  // restart countdown so the offer stays live
-      } else {
-        // Other purchase failure -- fall through to result
-        renderFinalResult(score, outcome, onPlayAgain)
+        return
       }
+
+      // Failure handling -- distinguish recoverable from terminal.
+      const recoverable =
+        resp.error === 'wallet_required' ||
+        resp.error === 'user_rejected'   ||
+        resp.error === 'sign_failed'
+
+      if (resp.error === 'wallet_required') {
+        degradeToStars()
+      }
+
+      if (recoverable) {
+        // Restore the button so the user can try again and keep the offer live.
+        if (btn) {
+          btn.disabled = false
+          btn.innerHTML = originalLabel
+        }
+        startCountdown()
+        return
+      }
+
+      // Unknown / terminal error -- fall through to final result.
+      renderFinalResult(score, outcome, onPlayAgain)
     } catch {
       renderFinalResult(score, outcome, onPlayAgain)
     }
