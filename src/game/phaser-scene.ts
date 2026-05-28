@@ -333,7 +333,11 @@ export class SwampScene extends Phaser.Scene {
       tgHaptic('error')
       this.time.delayedCall(800, () => {
         const score = this.gs.score
-        this.game.events.emit('gameEnd', { score, outcome: score > 0 ? 'win' : 'loss' })
+        // Swamp Runner is an endless runner -- every death is a 'loss' from
+        // a revive-offer perspective, regardless of score. The 'win' outcome
+        // would only fire on an explicit clear/checkpoint event (none exist
+        // in this game yet).
+        this.game.events.emit('gameEnd', { score, outcome: 'loss' })
       })
     }
   }
