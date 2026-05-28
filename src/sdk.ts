@@ -274,10 +274,16 @@ window.addEventListener('message', (e: MessageEvent) => {
   const d = e.data as { type?: string; binding?: WalletBinding | null } | null
   if (!d || d.type !== 'SG_TIER_CHANGED') return
   const newBinding = d.binding ?? null
-  const oldTier = _lastBinding?.tier ?? 'initiate'
+  const oldBinding = _lastBinding
+  const oldTier = oldBinding?.tier ?? 'initiate'
   const newTier = newBinding?.tier ?? 'initiate'
+  const boundChanged = (oldBinding == null) !== (newBinding == null)
+  const addressChanged = oldBinding != null && newBinding != null && oldBinding.address !== newBinding.address
   _lastBinding = newBinding
-  if (oldTier !== newTier) {
+  // Fire on any meaningful change: tier, bound↔unbound, or wallet swap.
+  // The previous tier-only check missed disconnect from bound+initiate → unbound
+  // (both resolve to 'initiate'), leaving the UI stuck on the bound state.
+  if (oldTier !== newTier || boundChanged || addressChanged) {
     const event: TierChangeEvent = {
       old_tier: oldTier,
       new_tier: newTier,
