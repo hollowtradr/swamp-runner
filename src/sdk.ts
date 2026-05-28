@@ -272,6 +272,11 @@ function getTonConnect(): TonConnectUI {
   if (!_tcUI) {
     _tcUI = new TonConnectUI({
       manifestUrl: 'https://swamp-runner.vercel.app/tonconnect-manifest.json',
+      // Return user to the Telegram mini-app after wallet approval (instead of opening manifestUrl in Chrome).
+      // Resolves to the launching bot when running inside Telegram WebApp; harmless no-op outside Telegram.
+      actionsConfiguration: {
+        twaReturnUrl: 'https://t.me/babyyodatonbot',
+      },
     })
   }
   return _tcUI
