@@ -1278,3 +1278,102 @@ html, body {
   color: var(--gold);
   opacity: 0.85;
 }
+
+/* ================================================================
+   v0.3.0 Wallet UX additions
+   ================================================================ */
+
+/* -- Settings link footer ---------------------------------------- */
+.settings-link {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 0;
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-size: 11px;
+  color: var(--parchment);
+  opacity: 0.55;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+}
+
+.settings-link:hover,
+.settings-link:focus-visible {
+  opacity: 0.85;
+  outline: none;
+  text-decoration: underline;
+}
+
+/* -- Wallet-required revive button indicator --------------------- */
+/* Shown on TON/YODA buttons before wallet check resolves */
+.revive-btn.wallet-required {
+  position: relative;
+  opacity: 0.88;
+}
+
+/* -- Disabled TON/YODA state after wallet modal dismissed -------- */
+.revive-btn.disabled-no-wallet {
+  opacity: 0.38;
+  cursor: not-allowed;
+  filter: saturate(0.3);
+}
+
+.revive-btn.disabled-no-wallet:disabled {
+  pointer-events: none;
+}
+
+/* -- Fallback toast: "Wallet not connected -- Stars works without" */
+.revive-fallback-toast {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(240, 220, 160, 0.15);
+  border: 1px solid rgba(240, 220, 160, 0.3);
+  font-family: 'Fraunces', serif;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--parchment);
+  text-align: center;
+  animation: fadeInUp 0.25s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* -- TitlePerksCard connect-wallet CTA variant ------------------- */
+.title-perks-connect-btn {
+  width: 100%;
+  font-family: 'Fraunces', serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--swamp-deep);
+  background: rgba(106, 170, 56, 0.85);   /* accent green -- wallet action */
+  border: 1px solid rgba(50, 120, 20, 0.5);
+}
+
+.title-perks-connect-btn:hover {
+  background: rgba(106, 170, 56, 1);
+  box-shadow: 0 2px 10px rgba(106, 170, 56, 0.4);
+}
+
+.title-perks-connect-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* -- Wallet binding still loading placeholder -------------------- */
+.title-perks-upgrade-loading {
+  text-align: center;
+  font-family: 'Fraunces', serif;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--parchment-text);
+  opacity: 0.5;
+  padding: 6px 0;
+}

@@ -1,16 +1,20 @@
 /**
- * src/ui/ResultScreen.ts — Swamp Runner result screen
+ * src/ui/ResultScreen.ts -- Swamp Runner result screen
  *
  * Flow on game-over:
- *   1. [loss only, first death] Revive offer — 5s countdown, 3 purchase buttons
- *   2. Final result — score, midi, rank, submit button
+ *   1. [loss only, first death] Revive offer -- 5s countdown, 3 purchase buttons
+ *   2. Final result -- score, midi, rank, submit button
  *      + daily-plays-exhausted card (when daily cap hit)
  *      + cosmetic shelf (always visible after a run)
  *
- * Follows SDK spec: POST /arcade/v0/result → /arcade/v0/submit.
+ * Follows SDK spec: POST /arcade/v0/result -> /arcade/v0/submit.
+ *
+ * v0.3.0: TON + YODA revive buttons show wallet-required state and gracefully
+ * degrade when the player dismisses the wallet modal.
  */
 
 import * as sdk from '../sdk.js'
+import type { WalletBinding } from '../sdk.js'
 import { type HolderTier } from '../sdk.js'
 import { tgHaptic, tgMainButton } from '../tg.js'
 import { getGameOverQuote } from '../game/index.js'
@@ -41,9 +45,9 @@ export function setEntryContext(entryId: string, startTimeMs: number): void {
   _hasRevived = false  // new run begins
 }
 
-// Tier perk tables imported from ./tier-perks.ts — no local duplication
+// Tier perk tables imported from ./tier-perks.ts -- no local duplication
 
-// ── Featured cosmetics (rotating shelf) ──────────────────────────────────────
+// -- Featured cosmetics (rotating shelf) --------------------------------------
 
 interface CosmeticItem {
   name: string
@@ -59,7 +63,7 @@ const FEATURED_COSMETICS: CosmeticItem[] = [
   { name: 'Holocron Pet', tonPrice: 5.0, yodaBase: 2300, itemId: 'holocron_pet', itemType: 'cosmetic_skin' },
 ]
 
-// ── Free-revive daily counter (localStorage) ──────────────────────────────────
+// -- Free-revive daily counter (localStorage) ----------------------------------
 
 function freeReviveKey(): string {
   return `swamp_runner_free_revives_${new Date().toISOString().slice(0, 10)}`
@@ -73,7 +77,7 @@ function incrementFreeRevivesUsed(): void {
   localStorage.setItem(freeReviveKey(), String(getFreeRevivesUsedToday() + 1))
 }
 
-// ── Public entry point ────────────────────────────────────────────────────────
+// -- Public entry point -------------------------------------------------------
 
 export function showResultScreen(
   score: number,
@@ -85,7 +89,7 @@ export function showResultScreen(
 
   // Show revive offer first for loss runs, unless player already revived this run
   if (outcome === 'loss' && !_hasRevived) {
-    renderReviveOffer(score, outcome, onPlayAgain)
+    void renderReviveOffer(score, outcome, onPlayAgain)
   } else {
     renderFinalResult(score, outcome, onPlayAgain)
   }
@@ -95,13 +99,13 @@ export function hideResultScreen(): void {
   _el?.classList.add('hidden')
 }
 
-// ── Revive offer screen ───────────────────────────────────────────────────────
+// -- Revive offer screen -------------------------------------------------------
 
-function renderReviveOffer(
+async function renderReviveOffer(
   score: number,
   outcome: 'win' | 'loss' | 'draw',
   onPlayAgain: () => void,
-): void {
+): Promise<void> {
   if (!_el) return
 
   const tier          = sdk.getHolderTier()
@@ -109,6 +113,11 @@ function renderReviveOffer(
   const freeUsed      = getFreeRevivesUsedToday()
   const hasFreeRevive = freePerDay > 0 && freeUsed < freePerDay
   const isLowTier     = tier === 'initiate' || tier === 'padawan'
+
+  // Fetch wallet binding to show 🔗 indicator on TON/YODA buttons.
+  // Fire-and-forget -- buttons render neutral first, then update after fetch.
+  let walletBinding: WalletBinding | null = null
+  const bindingPromise = sdk.getWalletBinding().then(b => { walletBinding = b }).catch(() => {})
 
   _el.innerHTML = `
     <div class="result-scroll">
@@ -151,7 +160,25 @@ function renderReviveOffer(
     </div>
   `
 
-  // 7-second countdown (extended from 5s so the offer is actually seen)
+  // After wallet fetch resolves, decorate TON/YODA buttons with 🔗 if unbound.
+  if (!hasFreeRevive) {
+    void bindingPromise.then(() => {
+      if (walletBinding === null) {
+        const tonBtn  = document.getElementById('revive-ton')
+        const yodaBtn = document.getElementById('revive-yoda')
+        if (tonBtn)  {
+          tonBtn.classList.add('wallet-required')
+          tonBtn.innerHTML = '🔗 0.5 TON'
+        }
+        if (yodaBtn) {
+          yodaBtn.classList.add('wallet-required')
+          yodaBtn.innerHTML = '🔗 250 YODA<span class="revive-discount-badge">−$0.04 vs TON</span>'
+        }
+      }
+    })
+  }
+
+  // 7-second countdown
   let secsLeft = 7
   const timerEl = document.getElementById('revive-timer')
   const barEl   = document.getElementById('revive-bar')
@@ -173,18 +200,49 @@ function renderReviveOffer(
     if (autoTimer) clearInterval(autoTimer)
   }
 
+  /**
+   * Show fallback toast + dim TON/YODA buttons when wallet is dismissed.
+   * Stars button stays enabled and is highlighted as primary.
+   */
+  function degradeToStars(): void {
+    const tonBtn   = document.getElementById('revive-ton')  as HTMLButtonElement | null
+    const yodaBtn  = document.getElementById('revive-yoda') as HTMLButtonElement | null
+    const starsBtn = document.getElementById('revive-stars') as HTMLButtonElement | null
+
+    if (tonBtn)  { tonBtn.disabled  = true; tonBtn.classList.add('disabled-no-wallet') }
+    if (yodaBtn) { yodaBtn.disabled = true; yodaBtn.classList.add('disabled-no-wallet') }
+    if (starsBtn) starsBtn.classList.add('btn-success')  // promote Stars to primary
+
+    // Toast
+    const buttonsEl = _el?.querySelector('.revive-buttons')
+    if (buttonsEl && !_el?.querySelector('.revive-fallback-toast')) {
+      const toast = document.createElement('div')
+      toast.className = 'revive-fallback-toast'
+      toast.textContent = 'Wallet not connected \u2014 Stars works without'
+      buttonsEl.insertAdjacentElement('afterend', toast)
+    }
+  }
+
   async function handlePaidRevive(currency: 'TON' | 'Stars' | 'YODA', price: number): Promise<void> {
     cancelCountdown()
     const btn = document.querySelector<HTMLButtonElement>(`#revive-${currency.toLowerCase()}`)
-    if (btn) { btn.disabled = true; btn.textContent = 'Opening…' }
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening\u2026' }
 
-    const resp = await sdk.requestPurchase('extra_play', 'revive', price, 'Continue run', currency)
-    if (resp.success) {
-      _hasRevived = true
-      hideResultScreen()
-      onPlayAgain()  // NOTE: true in-run state revival (reset player pos etc.) is game-loop scope; PR 1 ships the purchase flow
-    } else {
-      // Purchase failed or cancelled — fall through to result
+    try {
+      const resp = await sdk.requestPurchase('extra_play', 'revive', price, 'Continue run', currency)
+      if (resp.success) {
+        _hasRevived = true
+        hideResultScreen()
+        onPlayAgain()  // NOTE: true in-run state revival (reset player pos etc.) is game-loop scope
+      } else if (!resp.success && resp.error === 'wallet_required') {
+        // User dismissed wallet modal -- gracefully degrade, don't go to final result
+        degradeToStars()
+        startCountdown()  // restart countdown so the offer stays live
+      } else {
+        // Other purchase failure -- fall through to result
+        renderFinalResult(score, outcome, onPlayAgain)
+      }
+    } catch {
       renderFinalResult(score, outcome, onPlayAgain)
     }
   }
@@ -212,7 +270,7 @@ function renderReviveOffer(
   tgHaptic('warning')
 }
 
-// ── Final result screen ───────────────────────────────────────────────────────
+// -- Final result screen -------------------------------------------------------
 
 function renderFinalResult(
   score: number,
@@ -326,7 +384,7 @@ function renderFinalResult(
   postGameResult(score, outcome).catch(console.error)
 }
 
-// ── Extra-play purchase pill (shown on every final result screen) ────────────
+// -- Extra-play purchase pill (shown on every final result screen) ------------
 
 function renderExtraPlayPill(): string {
   return `
@@ -338,7 +396,7 @@ function renderExtraPlayPill(): string {
   `
 }
 
-// ── Daily-plays-exhausted card ────────────────────────────────────────────────
+// -- Daily-plays-exhausted card -----------------------------------------------
 
 function renderDailyPlaysCard(tier: HolderTier): string {
   const playsNow  = DAILY_PLAYS[tier]
@@ -364,7 +422,7 @@ function renderDailyPlaysCard(tier: HolderTier): string {
   `
 }
 
-// ── Cosmetic shelf ────────────────────────────────────────────────────────────
+// -- Cosmetic shelf -----------------------------------------------------------
 
 function renderCosmeticShelf(tier: HolderTier): string {
   const discountPct = COSMETIC_DISCOUNT_PCT[tier]
@@ -392,7 +450,7 @@ function renderCosmeticShelf(tier: HolderTier): string {
   `
 }
 
-// ── Internal: post game result ────────────────────────────────────────────────
+// -- Internal: post game result -----------------------------------------------
 
 async function postGameResult(
   score: number,
@@ -401,7 +459,7 @@ async function postGameResult(
   const durationSecs = Math.round((performance.now() - _startTime) / 1000)
 
   /**
-   * REAL SDK CALL — shape:
+   * REAL SDK CALL -- shape:
    * { entry_id, user_id, score, outcome, proof_of_play_token, play_duration_seconds, metadata }
    *
    * When no real session token exists (local dev), the API returns an error;
@@ -413,7 +471,7 @@ async function postGameResult(
     play_duration_seconds: Math.max(1, durationSecs),
     metadata: {
       game: 'swamp_runner',
-      pickups_collected: 0,   // TODO: thread from state — phase 2
+      pickups_collected: 0,   // TODO: thread from state -- phase 2
       max_speed_reached: 0,
       longest_combo: 0,
     },

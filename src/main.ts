@@ -20,6 +20,7 @@ import { tgReady, tgBackButton } from './tg.js'
 import { startGame, stopGame } from './game/index.js'
 import { initHUD, showHUD, hideHUD, updateHUD } from './ui/HUD.js'
 import { mountTitlePerksCard } from './ui/TitlePerksCard.js'
+import { mountSettingsLink } from './ui/SettingsLink.js'
 import {
   initResultScreen,
   setEntryContext,
@@ -149,10 +150,12 @@ function showTitleScreen(session: SessionData | null): void {
 
   app.appendChild(titleEl)
 
-  // Mount tier perks card below the button row (only in live session mode)
-  if (!isDemoMode) {
-    const titleContent = titleEl.querySelector<HTMLElement>('.title-content')
-    if (titleContent) mountTitlePerksCard(titleContent)
+  // Mount tier perks card below the button row.
+  // Always mounted -- wallet mock works in demo mode too (localStorage-backed).
+  const titleContent = titleEl.querySelector<HTMLElement>('.title-content')
+  if (titleContent) {
+    mountTitlePerksCard(titleContent)
+    mountSettingsLink(titleContent)
   }
 
   document.getElementById('play-btn')?.addEventListener('click', () => {
