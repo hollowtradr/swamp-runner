@@ -307,6 +307,38 @@ async function renderReviveOffer(
     doRevive()  // true in-run revival
   }
 
+  // Recover from a suspend-killed Promise: if we taped a paid revive,
+  // pressed Tonkeeper, signed, and the iframe was suspended during the
+  // round-trip, the await in handlePaidRevive never resolves. On resume
+  // we restore the button so the user can try again or pick another
+  // currency. The backend confirmation worker is independent of the UI
+  // so the user's TX is still tracked if it actually went through.
+  function restoreStuckOpeningButtons(): void {
+    for (const c of ['ton', 'stars', 'yoda'] as const) {
+      const b = document.getElementById(`revive-${c}`) as HTMLButtonElement | null
+      if (!b) continue
+      // 'Opening…' is the only "stuck" label we set on suspend.
+      if (b.disabled && /opening/i.test(b.textContent ?? '')) {
+        b.disabled = false
+        const labels: Record<typeof c, string> = {
+          ton: '0.5 TON',
+          stars: '50 ⭐',
+          yoda: '💎 250 YODA<span class="revive-discount-badge">−$0.04 vs TON</span>',
+        }
+        b.innerHTML = labels[c]
+      }
+    }
+  }
+  function onVisibility(): void {
+    if (document.visibilityState !== 'visible') return
+    restoreStuckOpeningButtons()
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+  // Cleanup when the revive offer goes away; rebound on next renderReviveOffer.
+  const _origHide = () => document.removeEventListener('visibilitychange', onVisibility)
+  // Tie cleanup to the result-screen Skip handler (last button bound below).
+  _el?.querySelector('#revive-skip')?.addEventListener('click', _origHide, { once: true })
+
   // Bind buttons
   document.getElementById('revive-ton')?.addEventListener('click', () => handlePaidRevive('TON', 0.5))
   document.getElementById('revive-stars')?.addEventListener('click', () => handlePaidRevive('Stars', 50))
