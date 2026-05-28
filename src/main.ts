@@ -19,6 +19,7 @@ import * as sdk from './sdk.js'
 import { tgReady, tgBackButton } from './tg.js'
 import { startGame, stopGame } from './game/index.js'
 import { initHUD, showHUD, hideHUD, updateHUD } from './ui/HUD.js'
+import { mountTitlePerksCard } from './ui/TitlePerksCard.js'
 import {
   initResultScreen,
   setEntryContext,
@@ -147,6 +148,12 @@ function showTitleScreen(session: SessionData | null): void {
   `
 
   app.appendChild(titleEl)
+
+  // Mount tier perks card below the button row (only in live session mode)
+  if (!isDemoMode) {
+    const titleContent = titleEl.querySelector<HTMLElement>('.title-content')
+    if (titleContent) mountTitlePerksCard(titleContent)
+  }
 
   document.getElementById('play-btn')?.addEventListener('click', () => {
     titleEl.classList.add('fade-out')

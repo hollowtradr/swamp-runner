@@ -15,6 +15,14 @@ import { type HolderTier } from '../sdk.js'
 import { tgHaptic, tgMainButton } from '../tg.js'
 import { getGameOverQuote } from '../game/index.js'
 import { getSprites } from '../game/assets.js'
+import {
+  TIER_LABELS,
+  FREE_REVIVES_PER_DAY,
+  COSMETIC_DISCOUNT_PCT,
+  DAILY_PLAYS,
+  NEXT_TIER_INFO,
+  YODA_DEX_URL,
+} from './tier-perks.js'
 
 let _el: HTMLElement | null = null
 let _entryId = ''
@@ -33,32 +41,7 @@ export function setEntryContext(entryId: string, startTimeMs: number): void {
   _hasRevived = false  // new run begins
 }
 
-// ── Tier perk tables (mirrors manifest.json yoda_tier_perks) ─────────────────
-
-const FREE_REVIVES_PER_DAY: Record<HolderTier, number> = {
-  initiate: 0, padawan: 0, knight: 1, master: 2, grandmaster: 3,
-}
-
-const COSMETIC_DISCOUNT_PCT: Record<HolderTier, number> = {
-  initiate: 0, padawan: 5, knight: 15, master: 20, grandmaster: 25,
-}
-
-const DAILY_PLAYS: Record<HolderTier, number> = {
-  initiate: 3, padawan: 4, knight: 5, master: 6, grandmaster: 7,
-}
-
-const TIER_LABELS: Record<HolderTier, string> = {
-  initiate: 'Initiate', padawan: 'Padawan', knight: 'Knight',
-  master: 'Master', grandmaster: 'Grandmaster',
-}
-
-const NEXT_TIER_INFO: Record<HolderTier, { nextTier: string; holdReq: string; nextTierKey: HolderTier } | null> = {
-  initiate:    { nextTier: 'Padawan',      holdReq: '1k',    nextTierKey: 'padawan' },
-  padawan:     { nextTier: 'Knight',       holdReq: '10k',   nextTierKey: 'knight' },
-  knight:      { nextTier: 'Master',       holdReq: '100k',  nextTierKey: 'master' },
-  master:      { nextTier: 'Grandmaster',  holdReq: '500k',  nextTierKey: 'grandmaster' },
-  grandmaster: null,
-}
+// Tier perk tables imported from ./tier-perks.ts — no local duplication
 
 // ── Featured cosmetics (rotating shelf) ──────────────────────────────────────
 
@@ -135,7 +118,7 @@ function renderReviveOffer(
         <div class="revive-countdown-wrap">
           <div class="revive-countdown-bar" id="revive-bar"></div>
         </div>
-        <div class="revive-timer-label" id="revive-timer">5</div>
+        <div class="revive-timer-label" id="revive-timer">7</div>
 
         <div class="revive-buttons">
           ${hasFreeRevive ? `
@@ -163,13 +146,13 @@ function renderReviveOffer(
           </div>
         ` : ''}
 
-        <button class="btn btn-ghost revive-skip" id="revive-skip">No thanks</button>
+        <button class="btn btn-ghost revive-skip" id="revive-skip">Skip revive →</button>
       </div>
     </div>
   `
 
-  // 5-second countdown
-  let secsLeft = 5
+  // 7-second countdown (extended from 5s so the offer is actually seen)
+  let secsLeft = 7
   const timerEl = document.getElementById('revive-timer')
   const barEl   = document.getElementById('revive-bar')
   let autoTimer: ReturnType<typeof setInterval> | null = null
@@ -178,7 +161,7 @@ function renderReviveOffer(
     autoTimer = setInterval(() => {
       secsLeft--
       if (timerEl) timerEl.textContent = String(secsLeft)
-      if (barEl)   barEl.style.width   = `${(secsLeft / 5) * 100}%`
+      if (barEl)   barEl.style.width   = `${(secsLeft / 7) * 100}%`
       if (secsLeft <= 0) {
         clearInterval(autoTimer!)
         renderFinalResult(score, outcome, onPlayAgain)
@@ -225,6 +208,8 @@ function renderReviveOffer(
   })
 
   startCountdown()
+  // Haptic pulse so the player notices the offer on arrival
+  tgHaptic('warning')
 }
 
 // ── Final result screen ───────────────────────────────────────────────────────
@@ -274,6 +259,7 @@ function renderFinalResult(
           <div class="result-rank" id="result-rank"></div>
 
           ${playsRem <= 0 ? renderDailyPlaysCard(tier) : ''}
+          ${renderExtraPlayPill()}
         </div>
 
         ${renderCosmeticShelf(tier)}
@@ -308,6 +294,14 @@ function renderFinalResult(
     import('./Leaderboard.js').then(({ showLeaderboard }) => showLeaderboard())
   })
 
+  // Extra-play purchase pill
+  document.getElementById('extra-play-purchase')?.addEventListener('click', async () => {
+    const btn = document.getElementById('extra-play-purchase') as HTMLButtonElement | null
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening…' }
+    await sdk.requestPurchase('extra_play', 'extra_play', 0.3, 'Extra play', 'TON')
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Buy extra play · 0.3 TON' }
+  })
+
   // Cosmetic shelf buy buttons
   const shelfBuyBtn = document.getElementById('cosmetic-shelf-buy')
   if (shelfBuyBtn) {
@@ -332,6 +326,18 @@ function renderFinalResult(
   postGameResult(score, outcome).catch(console.error)
 }
 
+// ── Extra-play purchase pill (shown on every final result screen) ────────────
+
+function renderExtraPlayPill(): string {
+  return `
+    <div class="extra-play-pill" id="extra-play-pill">
+      <button class="btn btn-ghost extra-play-btn" id="extra-play-purchase">
+        ⚡ Buy extra play · 0.3 TON
+      </button>
+    </div>
+  `
+}
+
 // ── Daily-plays-exhausted card ────────────────────────────────────────────────
 
 function renderDailyPlaysCard(tier: HolderTier): string {
@@ -344,7 +350,7 @@ function renderDailyPlaysCard(tier: HolderTier): string {
         ${tierLabel}: ${playsNow}/day → Hold ${nextInfo.holdReq} YODA → ${nextInfo.nextTier}: ${DAILY_PLAYS[nextInfo.nextTierKey]}/day
        </div>
        <a class="btn btn-ghost swamp-btn-ghost daily-plays-cta"
-          href="https://app.ston.fi/swap?ft=TON&tt=YODA"
+          href="${YODA_DEX_URL}"
           target="_blank" rel="noopener noreferrer">
          Get YODA ↗
        </a>`
