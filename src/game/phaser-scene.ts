@@ -76,6 +76,8 @@ export class SwampScene extends Phaser.Scene {
 
   // Player sprite (loaded if /sprites/ exist, else drawn via playerGfx)
   private playerImg: Phaser.GameObjects.Image | null = null
+  private playerRim: Phaser.GameObjects.Image | null = null  // amber rim-light pass
+  private playerShadow: Phaser.GameObjects.Ellipse | null = null  // contact shadow
 
   // Tween state
   private bobTween: Phaser.Tweens.Tween | null = null
@@ -210,10 +212,27 @@ export class SwampScene extends Phaser.Scene {
 
     // Player sprite (if assets loaded)
     if (this.textures.exists('yoda_idle')) {
+      // v6 scene-integration pass: contact shadow + rim light + warm tint.
+      // Contact shadow sits BETWEEN earth (0.95) and moss FG (3.7) so it
+      // grounds Yoda visually. Soft amber rim is an ADD-blend duplicate
+      // sprite riding the main sprite, low alpha. Warm tint nudges palette.
+      this.playerShadow = this.add.ellipse(0, 0, 60, 14, 0x000000, 0.35)
+        .setDepth(3.65)
+        .setVisible(false)
       this.playerImg = this.add.image(0, 0, 'yoda_idle')
         .setOrigin(0, 0)
         .setDisplaySize(PLAYER_WIDTH * 1.4, PLAYER_HEIGHT * 1.4)
-        .setDepth(3)
+        .setDepth(4.0)
+        .setVisible(false)
+      // Warm tint integration with scene amber. Subtle — ~6% warm shift.
+      this.playerImg.setTint(0xfff0d8)
+      this.playerRim = this.add.image(0, 0, 'yoda_idle')
+        .setOrigin(0, 0)
+        .setDisplaySize(PLAYER_WIDTH * 1.4, PLAYER_HEIGHT * 1.4)
+        .setDepth(4.05)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setAlpha(0.22)
+        .setTint(0xffb04a)  // amber spill
         .setVisible(false)
     }
 
@@ -1325,24 +1344,64 @@ export class SwampScene extends Phaser.Scene {
       let runAngle = angle
       let runScaleX = 1
       let runScaleY = 1
-      if (p.anim === 'running' && this.textures.exists('yoda_idle')) {
-        if (this.playerImg.texture.key !== 'yoda_idle') this.playerImg.setTexture('yoda_idle')
-        // Sine waves at 4Hz: lean ~6deg side to side, slight squash on each footfall
+      // TRUE walk cycle: swap idle ↔ idle_b every 0.18s (leg-swap mid-stride).
+      // Still apply a small lean + squash for weight, but the frame swap is
+      // what reads as walking instead of shimmying.
+      let targetTex: string | null = null  // null = don't override syncPlayerAnim's choice
+      if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
+        const STEP_HZ = 2.8  // cycles per second (each cycle = 2 steps)
+        const phase = this.gs.gameTime * STEP_HZ * Math.PI * 2
+        const onFrameB = Math.sin(phase) > 0
+        targetTex = onFrameB ? 'yoda_idle_b' : 'yoda_idle'
+        runAngle = Math.sin(phase * 0.5) * 3  // gentle lean, much subtler than before
+        runScaleY = 1 - Math.abs(Math.cos(phase)) * 0.04  // light squash
+        runScaleX = 1 + Math.abs(Math.cos(phase)) * 0.025
+      } else if (p.anim === 'running') {
+        // Fallback (no idle_b texture): original shimmy
         const phase = this.gs.gameTime * 4 * Math.PI
         runAngle = Math.sin(phase) * 6
-        runScaleY = 1 - Math.abs(Math.cos(phase)) * 0.06  // squash on impact
+        runScaleY = 1 - Math.abs(Math.cos(phase)) * 0.06
         runScaleX = 1 + Math.abs(Math.cos(phase)) * 0.04
       }
+      if (targetTex && this.playerImg.texture.key !== targetTex) {
+        this.playerImg.setTexture(targetTex)
+      }
+      // Rim sprite always tracks main sprite's current texture
+      if (this.playerRim && this.playerRim.texture.key !== this.playerImg.texture.key) {
+        this.playerRim.setTexture(this.playerImg.texture.key)
+      }
+      const finalAngle = p.anim === 'running' ? runAngle : angle
       this.playerImg
         .setVisible(true)
         .setPosition(px, py)
         .setDisplaySize(PW * runScaleX, PH * runScaleY)
         .setAlpha(alpha)
-        .setAngle(p.anim === 'running' ? runAngle : angle)
+        .setAngle(finalAngle)
+      // Rim light tracks main sprite exactly
+      if (this.playerRim) {
+        this.playerRim
+          .setVisible(true)
+          .setPosition(px, py)
+          .setDisplaySize(PW * runScaleX, PH * runScaleY)
+          .setAlpha(alpha * 0.22)
+          .setAngle(finalAngle)
+      }
+      // Contact shadow sits at the visual feet line (matches moss-top calc)
+      if (this.playerShadow) {
+        const feetY = p.screenY + PLAYER_HEIGHT * 0.95
+        const shadowSquash = p.anim === 'jumping' ? 0.4 : 1.0
+        this.playerShadow
+          .setVisible(p.anim !== 'dead')
+          .setPosition(p.x, feetY)
+          .setSize(PW * 0.7 * shadowSquash, 12 * shadowSquash)
+          .setAlpha(alpha * 0.35 * shadowSquash)
+      }
     } else {
       g.setAlpha(alpha)
       this.drawFallbackYoda(g, p.x, py, p.anim, this.gs.gameTime, PW, PH)
       g.setAlpha(1)
+      this.playerRim?.setVisible(false)
+      this.playerShadow?.setVisible(false)
     }
   }
 
