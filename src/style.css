@@ -634,6 +634,18 @@ html, body {
   text-align: center;
 }
 
+.lb-mando-banner {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.lb-mando-banner img {
+  width: 160px;
+  height: auto;
+  border-radius: 8px;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+}
+
 .leaderboard-row {
   display: flex;
   align-items: center;
@@ -890,6 +902,16 @@ html, body {
   padding: 12px 14px;
   margin-top: 12px;
   width: 100%;
+}
+
+.daily-plays-sleeping {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.daily-plays-sleeping img {
+  width: 96px;
+  height: 96px;
 }
 
 .daily-plays-title {

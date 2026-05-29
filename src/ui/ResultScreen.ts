@@ -260,17 +260,19 @@ function renderFinalResult(
   const tier     = sdk.getHolderTier()
   const playsRem = sdk.getDailyPlaysRemaining()
 
-  // For defeat we use the animated Egor pensive sticker (webp w/ gif fallback)
-  // rendered straight from the public dir so the <img> tag plays it natively.
-  // Victory still uses the preloaded static idle pose.
-  const spriteEl = sprites.yodaVictory && isWin
-    ? `<img src="${sprites.yodaVictory.src}" class="result-sprite" alt="Victory!" />`
-    : !isWin
-      ? `<picture>
-           <source srcset="/sprites/v4/yoda_defeat_v4.webp" type="image/webp" />
-           <img src="/sprites/v4/yoda_defeat_v4.gif" class="result-sprite result-sprite-defeat" alt="Defeat" />
-         </picture>`
-      : `<div style="font-size:80px">${isWin ? '🏆' : '💀'}</div>`
+  // Animated Egor stickers for result screens. Victory = party-porgs sticker,
+  // Defeat = pensive sticker. Both decoded from the official BabyYoda TGS pack
+  // and rendered to webp (with gif fallback) so the <img> tag plays them
+  // natively without a Lottie runtime.
+  const spriteEl = isWin
+    ? `<picture>
+         <source srcset="/sprites/v4/yoda_victory_party.webp" type="image/webp" />
+         <img src="/sprites/v4/yoda_victory_party.gif" class="result-sprite" alt="Victory!" />
+       </picture>`
+    : `<picture>
+         <source srcset="/sprites/v4/yoda_defeat_v4.webp" type="image/webp" />
+         <img src="/sprites/v4/yoda_defeat_v4.gif" class="result-sprite result-sprite-defeat" alt="Defeat" />
+       </picture>`
 
   _el.innerHTML = `
     <div class="result-scroll">
@@ -429,6 +431,12 @@ function renderDailyPlaysCard(tier: HolderTier): string {
 
   return `
     <div class="daily-plays-card">
+      <div class="daily-plays-sleeping" aria-hidden="true">
+        <picture>
+          <source srcset="/sprites/v4/yoda_sleeping.webp" type="image/webp" />
+          <img src="/sprites/v4/yoda_sleeping.gif" alt="" />
+        </picture>
+      </div>
       <div class="daily-plays-title">Daily plays exhausted (${playsNow}/${playsNow})</div>
       ${upgradeHint}
     </div>
