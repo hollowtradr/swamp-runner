@@ -260,10 +260,16 @@ function renderFinalResult(
   const tier     = sdk.getHolderTier()
   const playsRem = sdk.getDailyPlaysRemaining()
 
+  // For defeat we use the animated Egor pensive sticker (webp w/ gif fallback)
+  // rendered straight from the public dir so the <img> tag plays it natively.
+  // Victory still uses the preloaded static idle pose.
   const spriteEl = sprites.yodaVictory && isWin
     ? `<img src="${sprites.yodaVictory.src}" class="result-sprite" alt="Victory!" />`
-    : sprites.yodaDefeat
-      ? `<img src="${sprites.yodaDefeat.src}" class="result-sprite" alt="Defeat" />`
+    : !isWin
+      ? `<picture>
+           <source srcset="/sprites/v4/yoda_defeat_v4.webp" type="image/webp" />
+           <img src="/sprites/v4/yoda_defeat_v4.gif" class="result-sprite result-sprite-defeat" alt="Defeat" />
+         </picture>`
       : `<div style="font-size:80px">${isWin ? '🏆' : '💀'}</div>`
 
   _el.innerHTML = `
