@@ -1208,6 +1208,17 @@ html, body {
   cursor: wait;
 }
 
+.extra-play-sub {
+  display: block;
+  font-family: 'Fraunces', serif;
+  font-size: 10px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--gold-ink);
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
 /* ── Title perks card (tier chrome on title screen) ─────────── */
 .title-perks-card {
   width: 100%;

@@ -52,6 +52,7 @@ let _gameId: string = ''
 let _proofOfPlayToken: string = ''
 let _holderTier: HolderTier = 'initiate'
 let _dailyPlaysRemaining: number = 3
+let _paidPlaysRemaining: number = 0
 
 // -- Wallet state -------------------------------------------------------------
 
@@ -375,6 +376,7 @@ export async function initSession(): Promise<SDKResponse<SessionData>> {
     // TODO: backend must populate holder_tier in session response
     _holderTier = result.data.holder_tier ?? 'initiate'
     _dailyPlaysRemaining = result.data.daily_plays_remaining
+    _paidPlaysRemaining = result.data.paid_plays_remaining ?? 0
   }
   return result
 }
@@ -755,6 +757,13 @@ export function getHolderTier(): HolderTier { return _holderTier }
 
 /** Daily plays remaining -- set from session response; defaults 3 (initiate cap). */
 export function getDailyPlaysRemaining(): number { return _dailyPlaysRemaining }
+export function getPaidPlaysRemaining(): number { return _paidPlaysRemaining }
+/** Local-only decrement after a successful extra-play purchase, so the UI
+ *  can hide the buy pill once the cap is reached without waiting for the
+ *  next /session refresh. Clamped at 0. */
+export function decrementPaidPlaysRemaining(n: number = 1): void {
+  _paidPlaysRemaining = Math.max(0, _paidPlaysRemaining - n)
+}
 
 // -- Window type augmentation -------------------------------------------------
 

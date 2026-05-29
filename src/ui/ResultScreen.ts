@@ -292,7 +292,7 @@ function renderFinalResult(
           <div class="result-rank" id="result-rank"></div>
 
           ${playsRem <= 0 ? renderDailyPlaysCard(tier) : ''}
-          ${renderExtraPlayPill()}
+          ${sdk.getPaidPlaysRemaining() > 0 ? renderExtraPlayPill(sdk.getPaidPlaysRemaining()) : ''}
         </div>
 
         ${SHOW_COSMETIC_SHELF ? renderCosmeticShelf(tier) : ''}
@@ -344,6 +344,10 @@ function renderFinalResult(
     )
     if (resp.success && resp.data?.purchase_id) {
       stashPendingExtraPlay(resp.data.purchase_id)
+      // Locally reflect the cap consumption so the user can't double-buy past
+      // their ceiling within the same result screen. Backend is the source of
+      // truth on next /session refresh.
+      sdk.decrementPaidPlaysRemaining(1)
       if (btn) {
         btn.disabled = true
         btn.textContent = '✓ Extra play purchased — Run Again to use it'
@@ -383,11 +387,17 @@ function renderFinalResult(
 
 // -- Extra-play purchase pill (shown on every final result screen) ------------
 
-function renderExtraPlayPill(): string {
+function renderExtraPlayPill(paidLeft: number): string {
+  // Universal ceiling: every tier maxes at 7 plays/day. Free plays are
+  // tier-granted (Initiate 3 → Grandmaster 7). Paid extra plays let lower
+  // tiers buy up to the 7 ceiling, capped at (7 − free_cap). Grandmaster
+  // gets all 7 free and cannot buy any — the pill is hidden for them
+  // because paidLeft == 0.
   return `
     <div class="extra-play-pill" id="extra-play-pill">
       <button class="btn btn-ghost extra-play-btn" id="extra-play-purchase">
         ⚡ Buy extra play · 0.3 TON
+        <span class="extra-play-sub">${paidLeft} of your daily ceiling left to buy</span>
       </button>
     </div>
   `
