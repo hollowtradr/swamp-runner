@@ -121,15 +121,19 @@ export class SwampScene extends Phaser.Scene {
   // V2 painted ground tile sprite (legacy, only used if v5 plates missing)
   private groundTile: Phaser.GameObjects.TileSprite | null = null
 
-  // v5 painterly scene plates. When all three exist we render JUST these as
-  // parallax tile-sprite scrollers and skip the procedural sky/tree/ground
-  // layers entirely. Player snaps to the ground plate's walk line.
+  // v5/v6 painterly scene plates. v6 adds a true backdrop (bg_sky) underneath
+  // cutout overlays (canopy/mid/ground) for proper parallax depth. When v6
+  // plates exist we use them; v5 is the fallback path. Player snaps to the
+  // ground plate's walk line in both cases.
+  private plateSky: Phaser.GameObjects.TileSprite | null = null
   private plateCanopy: Phaser.GameObjects.TileSprite | null = null
   private plateMid: Phaser.GameObjects.TileSprite | null = null
   private plateGround: Phaser.GameObjects.TileSprite | null = null
 
   /** True once preload found all three v5 plates. */
   private hasV5Plates = false
+  /** True once preload found all four v6 plates (sky + 3 cutouts). */
+  private hasV6Plates = false
 
   /** Y where the ground-plate's walk line sits in screen coords. Reserved
    *  for future use to snap player feet to the painted plate's walk line. */
@@ -185,6 +189,12 @@ export class SwampScene extends Phaser.Scene {
     this.load.image('plate_canopy', '/sprites/v5/bg_canopy.jpg')
     this.load.image('plate_mid',    '/sprites/v5/bg_mid_trees.jpg')
     this.load.image('plate_ground', '/sprites/v5/bg_ground.png')
+    // v6 painterly redesign — one opaque sky backdrop + three transparent
+    // cutout overlays. True parallax depth instead of three stacked paintings.
+    this.load.image('plate6_sky',    '/sprites/v6/bg_sky.jpg')
+    this.load.image('plate6_canopy', '/sprites/v6/bg_canopy.png')
+    this.load.image('plate6_mid',    '/sprites/v6/bg_mid_trees.png')
+    this.load.image('plate6_ground', '/sprites/v6/bg_ground.png')
   }
 
   create(): void {
@@ -301,18 +311,78 @@ export class SwampScene extends Phaser.Scene {
     // Depth order: canopy (0) → mid trees (0.5) → ground band (1.0) →
     // entities (2) → player (3). Player walks ON the ground band's painted
     // top edge at `visualGroundY`.
+    this.hasV6Plates =
+      this.textures.exists('plate6_sky') &&
+      this.textures.exists('plate6_canopy') &&
+      this.textures.exists('plate6_mid') &&
+      this.textures.exists('plate6_ground')
     this.hasV5Plates =
+      !this.hasV6Plates &&
       this.textures.exists('plate_canopy') &&
       this.textures.exists('plate_mid') &&
       this.textures.exists('plate_ground')
-    console.log('[v5 plates]', {
-      canopy: this.textures.exists('plate_canopy'),
-      mid: this.textures.exists('plate_mid'),
-      ground: this.textures.exists('plate_ground'),
-      hasV5: this.hasV5Plates,
+    console.log('[plates]', {
+      v6: {
+        sky: this.textures.exists('plate6_sky'),
+        canopy: this.textures.exists('plate6_canopy'),
+        mid: this.textures.exists('plate6_mid'),
+        ground: this.textures.exists('plate6_ground'),
+        hasV6: this.hasV6Plates,
+      },
+      v5: { hasV5: this.hasV5Plates },
     })
 
-    if (this.hasV5Plates) {
+    if (this.hasV6Plates) {
+      // v6: ONE backdrop + cutout overlays. Sky fills the screen as the
+      // deepest layer; canopy/mid/ground are transparent PNGs composited on
+      // top at different parallax rates.
+      const skySrc = this.textures.get('plate6_sky').getSourceImage() as HTMLImageElement
+      this.plateSky = this.add.tileSprite(0, 0, w, h, 'plate6_sky')
+        .setOrigin(0, 0)
+        .setDepth(-1.0)
+      this.plateSky.tileScaleY = h / skySrc.height
+      this.plateSky.tileScaleX = h / skySrc.height
+
+      // CANOPY overlay — hanging vines at top of frame. Fills screen so the
+      // vines sit in the upper third where they were painted.
+      const canopySrc6 = this.textures.get('plate6_canopy').getSourceImage() as HTMLImageElement
+      this.plateCanopy = this.add.tileSprite(0, 0, w, h, 'plate6_canopy')
+        .setOrigin(0, 0)
+        .setDepth(0.0)
+      this.plateCanopy.tileScaleY = h / canopySrc6.height
+      this.plateCanopy.tileScaleX = h / canopySrc6.height
+
+      // MID TREES overlay — trunks span ~80% of frame height. Place anchored
+      // so trunk bases sit near the painted ground line.
+      const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
+      this.plateMid = this.add.tileSprite(0, 0, w, h, 'plate6_mid')
+        .setOrigin(0, 0)
+        .setDepth(0.5)
+      this.plateMid.tileScaleY = h / midSrc6.height
+      this.plateMid.tileScaleX = h / midSrc6.height
+
+      // GROUND overlay — bottom 40% painted, top 60% alpha. Sized so the
+      // 60%/40% break lands at the player walk line.
+      const visualGroundY = this.gs.groundY + Math.round(PLAYER_HEIGHT * 0.4)
+      const paintedScreenH = h - visualGroundY
+      const plateH = Math.round(paintedScreenH / 0.40)
+      const plateTop = visualGroundY - Math.round(plateH * 0.60)
+      const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
+      this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
+        .setOrigin(0, 0)
+        .setDepth(1.0)
+      this.plateGround.tileScaleY = plateH / groundSrc6.height
+      this.plateGround.tileScaleX = plateH / groundSrc6.height
+
+      this.v5GroundLineY = visualGroundY
+      console.log('[v6 placement]', {
+        screen: { w, h },
+        sky: { tileScaleY: this.plateSky.tileScaleY.toFixed(3) },
+        canopy: { tileScaleY: this.plateCanopy.tileScaleY.toFixed(3) },
+        mid: { tileScaleY: this.plateMid.tileScaleY.toFixed(3) },
+        ground: { y: plateTop, h: plateH, walkLineY: visualGroundY, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
+      })
+    } else if (this.hasV5Plates) {
       // CANOPY — fills entire screen, scrolls slowest (15%). Image has
       // canopy art in top 65%, atmospheric haze in bottom 35%. We display
       // it full-screen so the haze covers the area where mid/ground sit.
@@ -412,7 +482,9 @@ export class SwampScene extends Phaser.Scene {
     // v5 painterly plates short-circuit ALL the procedural sky/tree/ground/
     // foliage layers. Three TileSprites scroll at their own parallax rates
     // and the ground line is baked into the bottom plate.
-    if (this.hasV5Plates) {
+    if (this.hasV6Plates) {
+      this.renderV6Plates(w, h)
+    } else if (this.hasV5Plates) {
       this.renderV5Plates(w, h)
     } else {
       this.renderBackground(w, h)
@@ -427,7 +499,7 @@ export class SwampScene extends Phaser.Scene {
     }
     this.renderEntities(w, h)
     this.renderPlayer()
-    if (!this.hasV5Plates) this.renderForegroundFoliage(w, h)
+    if (!this.hasV5Plates && !this.hasV6Plates) this.renderForegroundFoliage(w, h)
     this.renderHUD(w, h)
     this.updateHUDText(w, h)
 
@@ -867,6 +939,20 @@ export class SwampScene extends Phaser.Scene {
     const off = this.gs.worldOffset
     if (this.plateCanopy) this.plateCanopy.tilePositionX = off * 0.15
     if (this.plateMid)    this.plateMid.tilePositionX    = off * 0.45
+    if (this.plateGround) this.plateGround.tilePositionX = off * 1.00
+  }
+
+  // ── v6 painterly plate scrollers ─────────────────────────────────────────
+  //
+  // Four layers: opaque sky backdrop (slowest, depth=-1) + three cutout
+  // overlays (canopy/mid/ground) at increasing parallax rates. True depth
+  // illusion: each overlay reveals the sky behind it through its alpha.
+
+  private renderV6Plates(_w: number, _h: number): void {
+    const off = this.gs.worldOffset
+    if (this.plateSky)    this.plateSky.tilePositionX    = off * 0.05
+    if (this.plateCanopy) this.plateCanopy.tilePositionX = off * 0.15
+    if (this.plateMid)    this.plateMid.tilePositionX    = off * 0.40
     if (this.plateGround) this.plateGround.tilePositionX = off * 1.00
   }
 
