@@ -391,13 +391,16 @@ export class SwampScene extends Phaser.Scene {
       const plateH = Math.round(paintedScreenH / GROUND_PAINT_SPAN)
       const plateTop = mossTopY - Math.round(plateH * GROUND_PAINT_START)
       const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
-      // FOREGROUND moss — depth 4.5, in front of player (4), so player
-      // sinks/wades into the grass HK-style. Earth fill (0.95) behind
-      // ensures feet always meet a solid surface even if moss has alpha
-      // taper at the line where it meets the player.
+      // Moss layer — depth 3.7, BEHIND player (4.0), obstacles (1.5-2.2),
+      // and pickups so gameplay-critical sprites are always readable.
+      // Wade effect still works because the painted moss top edge has
+      // tendrils/strands that visually overlap the lower legs from behind
+      // (the player sprite has alpha padding around the feet that lets
+      // the moss texture peek through). Obstacles will be raised to 4.2
+      // so they sit ABOVE the moss tier even though they're behind player.
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
         .setOrigin(0, 0)
-        .setDepth(4.5)
+        .setDepth(3.7)
       this.plateGround.tileScaleY = plateH / groundSrc6.height
       this.plateGround.tileScaleX = plateH / groundSrc6.height
 
@@ -1091,7 +1094,13 @@ export class SwampScene extends Phaser.Scene {
       if (!pool) { pool = []; this.obstaclePool.set(key, pool) }
       return pool
     }
+    // v6 has a foreground moss layer at depth 3.7. Lift gameplay sprites
+    // ABOVE moss but BELOW player (4.0) so rocks/logs/pickups remain
+    // visible (no invisible collisions). Map raw depths 1.5-2.2 → 3.8-3.95.
+    const liftEntityDepth = (d: number): number =>
+      this.hasV6Plates ? Math.min(3.95, 3.8 + (d - 1.5) * 0.2) : d
     const useSprite = (poolKey: string, texKey: string, depth: number): Phaser.GameObjects.Image => {
+      depth = liftEntityDepth(depth)
       const pool = getPool(poolKey)
       // Find first hidden sprite or create new
       for (const s of pool) {
