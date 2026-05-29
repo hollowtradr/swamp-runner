@@ -36,7 +36,10 @@
       <!-- Loading / error state — shown during session init -->
       <div id="loading-screen" class="loading-screen">
         <div class="loading-content">
-          <div class="spinner"></div>
+          <picture class="loading-sticker">
+            <source srcset="/sprites/v4/yoda_thinking.webp" type="image/webp" />
+            <img src="/sprites/v4/yoda_thinking.gif" alt="" width="120" height="120" />
+          </picture>
           <p id="loading-message">Entering the Dagobah swamp…</p>
         </div>
       </div>

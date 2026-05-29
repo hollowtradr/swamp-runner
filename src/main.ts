@@ -106,7 +106,10 @@ function showTitleScreen(session: SessionData | null): void {
 
     <div class="title-content">
       <div class="title-hero">
-        <img src="/sprites/baby_yoda_title.png" class="title-hero-img" alt="Baby Yoda" />
+        <picture>
+          <source srcset="/sprites/v4/yoda_peace.webp" type="image/webp" />
+          <img src="/sprites/v4/yoda_peace.gif" class="title-hero-img" alt="Baby Yoda" />
+        </picture>
       </div>
 
       <div class="title-text-block">

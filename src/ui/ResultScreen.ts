@@ -174,6 +174,12 @@ async function renderReviveOffer(
   _el.innerHTML = `
     <div class="result-scroll">
       <div class="result-scroll-inner revive-offer">
+        <div class="revive-sticker" aria-hidden="true">
+          <picture>
+            <source srcset="/sprites/v4/yoda_shocked.webp" type="image/webp" />
+            <img src="/sprites/v4/yoda_shocked.gif" alt="" width="96" height="96" />
+          </picture>
+        </div>
         <div class="revive-title">"Force essence enough, you have. Continue?"</div>
 
         <div class="revive-countdown-wrap">
@@ -356,7 +362,7 @@ function renderFinalResult(
       sdk.decrementPaidPlaysRemaining(1)
       if (btn) {
         btn.disabled = true
-        btn.textContent = '✓ Extra play purchased — Run Again to use it'
+        btn.innerHTML = `<picture style="display:inline-block;vertical-align:middle;margin-right:6px;"><source srcset="/sprites/v4/yoda_coffee.webp" type="image/webp" /><img src="/sprites/v4/yoda_coffee.gif" alt="" width="32" height="32" /></picture> Extra play purchased — Run Again!`
         btn.classList.add('btn-success')
       }
     } else {
@@ -583,7 +589,12 @@ function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
 
   const data = resp.data
   if (midiEl) {
-    midiEl.innerHTML = `<span class="midi-earned">+${data.midi_awarded} midi</span>`
+    midiEl.innerHTML = `
+      <picture class="submit-sticker" aria-hidden="true">
+        <source srcset="/sprites/v4/yoda_thumbsup.webp" type="image/webp" />
+        <img src="/sprites/v4/yoda_thumbsup.gif" alt="" width="80" height="80" />
+      </picture>
+      <span class="midi-earned">+${data.midi_awarded} midi</span>`
     midiEl.classList.add('animating')
     setTimeout(() => midiEl.classList.remove('animating'), 600)
   }
