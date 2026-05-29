@@ -1319,7 +1319,10 @@ export class SwampScene extends Phaser.Scene {
     const PW = PLAYER_WIDTH * 1.4, PH = PLAYER_HEIGHT * 1.4
     const px = p.x - PW / 2
     // Apply bob offset for idle run; anchor bottom to state position
-    const bobY = p.anim === 'running' ? -this.bobOffset : 0
+    // v6 walk-cycle uses runBobY computed below from frame-swap phase;
+    // suppress the old tween bob during running to avoid double-bob.
+    const bobY = (p.anim === 'running' && this.textures.exists('yoda_idle_b')) ? 0
+      : p.anim === 'running' ? -this.bobOffset : 0
     // Sprite alpha bbox has empty padding below the planted foot when other foot is lifted;
     // compensate so the planted foot visually touches ground. Also Egor sticker has padding
     // below the figure baseline that bbox includes.
@@ -1348,14 +1351,21 @@ export class SwampScene extends Phaser.Scene {
       // Still apply a small lean + squash for weight, but the frame swap is
       // what reads as walking instead of shimmying.
       let targetTex: string | null = null  // null = don't override syncPlayerAnim's choice
+      let runBobY = 0  // vertical body bob for walk-cycle weight transfer
       if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
-        const STEP_HZ = 2.8  // cycles per second (each cycle = 2 steps)
+        // SOTA biped walk cadence: ~2 steps/sec = 1 Hz full cycle.
+        // Each FOOTFALL drops the body; mid-stride lifts it. With a 2-frame
+        // set, we get one drop per frame swap. Frame swap drives the legs;
+        // synchronized vertical bob drives weight; lean/squash REMOVED —
+        // they were fighting the frame swap and reading as shimmy.
+        const STEP_HZ = 1.9  // ~1.9 full cycles/sec, natural jog pace
         const phase = this.gs.gameTime * STEP_HZ * Math.PI * 2
         const onFrameB = Math.sin(phase) > 0
         targetTex = onFrameB ? 'yoda_idle_b' : 'yoda_idle'
-        runAngle = Math.sin(phase * 0.5) * 3  // gentle lean, much subtler than before
-        runScaleY = 1 - Math.abs(Math.cos(phase)) * 0.04  // light squash
-        runScaleX = 1 + Math.abs(Math.cos(phase)) * 0.025
+        // Bob: body LIFTS between footfalls, DROPS at each contact.
+        // Two footfalls per cycle → use |cos(phase)| inverted.
+        // Negative = up on screen (smaller y). Amplitude ~5% PH.
+        runBobY = -Math.abs(Math.sin(phase * 2)) * (PH * 0.05) + (PH * 0.025)
       } else if (p.anim === 'running') {
         // Fallback (no idle_b texture): original shimmy
         const phase = this.gs.gameTime * 4 * Math.PI
@@ -1371,9 +1381,10 @@ export class SwampScene extends Phaser.Scene {
         this.playerRim.setTexture(this.playerImg.texture.key)
       }
       const finalAngle = p.anim === 'running' ? runAngle : angle
+      const finalY = py + runBobY
       this.playerImg
         .setVisible(true)
-        .setPosition(px, py)
+        .setPosition(px, finalY)
         .setDisplaySize(PW * runScaleX, PH * runScaleY)
         .setAlpha(alpha)
         .setAngle(finalAngle)
@@ -1381,7 +1392,7 @@ export class SwampScene extends Phaser.Scene {
       if (this.playerRim) {
         this.playerRim
           .setVisible(true)
-          .setPosition(px, py)
+          .setPosition(px, finalY)
           .setDisplaySize(PW * runScaleX, PH * runScaleY)
           .setAlpha(alpha * 0.22)
           .setAngle(finalAngle)
