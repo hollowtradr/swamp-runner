@@ -367,15 +367,18 @@ export class SwampScene extends Phaser.Scene {
       // visualGroundY = groundY + 0.4*PLAYER_HEIGHT was a v5 trick where
       // the ground BAND started below feet; for v6 with a painted moss
       // SURFACE the top edge must sit AT the feet or Yoda floats.
-      // PNG alpha measured: rows 64.5%-91% opaque, top 64.5% and bottom 9%
-      // both fully transparent (bottom = unused water-reflection zone).
-      // Map painted SPAN (0.645 → 0.91 = 0.265 of source) to screen span
-      // groundY → screen-bottom, so moss top hits feet AND moss bottom
-      // hits screen bottom (no air gap below).
+      // PNG alpha measured: rows 64.5%-89% fully opaque; 89%-92% soft
+      // taper; bottom 8% fully transparent (water-reflection zone unused).
+      // Clip END at 0.89 to kill alpha-taper bleed at screen bottom.
       const GROUND_PAINT_START = 0.645
-      const GROUND_PAINT_END = 0.91
-      const GROUND_PAINT_SPAN = GROUND_PAINT_END - GROUND_PAINT_START  // 0.265
-      const groundSurfaceY = this.gs.groundY
+      const GROUND_PAINT_END = 0.89
+      const GROUND_PAINT_SPAN = GROUND_PAINT_END - GROUND_PAINT_START  // 0.245
+      // Yoda sprite uses origin (0.5,0.5), display-size PH = PLAYER_HEIGHT*1.4,
+      // with groundOffset = PH*0.15 (running). Net: visual feet land at
+      // py + PH/2 = groundY - PH/2 + PH*0.15 = groundY - PH*0.35.
+      // Moss top must hit the VISUAL feet, not the logical groundY.
+      const PH = PLAYER_HEIGHT * 1.4
+      const groundSurfaceY = this.gs.groundY - Math.round(PH * 0.35)
       const paintedScreenH = h - groundSurfaceY
       const plateH = Math.round(paintedScreenH / GROUND_PAINT_SPAN)
       const plateTop = groundSurfaceY - Math.round(plateH * GROUND_PAINT_START)
