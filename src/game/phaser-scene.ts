@@ -327,7 +327,9 @@ export class SwampScene extends Phaser.Scene {
 
     // Render layers
     this.renderBackground(w, h)
+    this.renderLightBloom(w, h)
     this.renderGodRays(w, h)
+    this.renderCanopyArch(w, h)
     // Painted ground tile if available; falls back to procedural Graphics ground
     if (this.textures.exists('ground_v2')) {
       this.renderPaintedGround(w, this.gs.groundY, h)
@@ -648,6 +650,96 @@ export class SwampScene extends Phaser.Scene {
   }
 
   private godRayGfx: Phaser.GameObjects.Graphics | null = null
+
+  // ── Light bloom hotspots (Silksong-style atmospheric glow) ────────────────
+  //
+  // Soft radial gradients in the sky/canopy area suggesting hidden sun-spots
+  // through the foliage. Two bloom centres drift very slowly with parallax,
+  // giving the sky a sense of warmth and depth. Rendered at depth 0.2 (above
+  // sky gradient, below god rays).
+
+  private bloomGfx: Phaser.GameObjects.Graphics | null = null
+
+  private renderLightBloom(w: number, _h: number): void {
+    if (!this.bloomGfx) {
+      this.bloomGfx = this.add.graphics().setDepth(0.2)
+    }
+    const g = this.bloomGfx; g.clear()
+    const gY = this.gs.groundY
+    const off = this.gs.worldOffset
+    // Two parallax-drifting bloom centres
+    const blooms = [
+      { cx: ((off * 0.03) % w + w * 0.25) % w, cy: gY * 0.25, r: gY * 0.55, color: 0xfff4b0, alpha: 0.10 },
+      { cx: ((off * 0.025) % w + w * 0.75) % w, cy: gY * 0.40, r: gY * 0.45, color: 0xe8ffaa, alpha: 0.08 },
+    ]
+    for (const b of blooms) {
+      // Layer 5 concentric circles with falloff alpha to fake a soft radial
+      // gradient (Phaser Graphics has no native radial gradient).
+      const RINGS = 6
+      for (let i = RINGS; i >= 1; i--) {
+        const ringR = b.r * (i / RINGS)
+        const ringAlpha = b.alpha * (1 - i / RINGS) * 1.2
+        g.fillStyle(b.color, ringAlpha)
+        g.fillCircle(b.cx, b.cy, ringR)
+      }
+    }
+  }
+
+  // ── Canopy arch (Silksong-style top-of-screen organic framing) ────────────
+  //
+  // Drooping vine/moss clusters along the top edge of the screen so the
+  // player feels inside a place, not in front of a wall. Sprites pulled
+  // from existing vine_v2 + tree_near_v2 silhouettes, tinted very dark and
+  // anchored to the top with origin (0.5, 0). Slow parallax (0.20) so they
+  // feel attached to the canopy.
+
+  private canopySprites: Phaser.GameObjects.Image[] = []
+
+  private renderCanopyArch(w: number, _h: number): void {
+    const CANOPY_POOL = 8
+    const CANOPY_SPACING = Math.round(w * 0.35)
+    // Lazy-init pool
+    if (this.canopySprites.length === 0) {
+      // Prefer vine sprite; fall back to tree_near; bail if neither loaded.
+      const tex = this.textures.exists('vine_v2') ? 'vine_v2'
+        : this.textures.exists('tree_near_v2') ? 'tree_near_v2'
+        : null
+      if (!tex) return
+      for (let i = 0; i < CANOPY_POOL; i++) {
+        const img = this.add.image(0, 0, tex)
+          .setOrigin(0.5, 0)  // anchor to top so the cluster droops down
+          .setDepth(0.4)       // above god rays, below tree silhouettes
+          .setTint(0x1a3520)
+          .setAlpha(0.65)
+          .setAngle(180)        // flip vertically so vine droops downward
+          .setVisible(false)
+        const s = 0.7 + (((i * 31 + 7) % 13) / 13) * 0.7  // 0.7-1.4
+        img.setData('cScale', s)
+        img.setData('cFlip', (i % 2 === 0) ? -1 : 1)
+        this.canopySprites.push(img)
+      }
+    }
+    // Position: slow parallax (canopy is "close" to camera in vertical sense
+    // but distant horizontally) — drift at 0.20 of world offset.
+    const off = this.gs.worldOffset * 0.20
+    const span = CANOPY_POOL * CANOPY_SPACING
+    for (let i = 0; i < CANOPY_POOL; i++) {
+      const baseX = i * CANOPY_SPACING
+      let x = ((baseX - (off % span)) % span + span) % span
+      if (x > span - CANOPY_SPACING / 2) x -= span
+      if (x < -CANOPY_SPACING || x > w + CANOPY_SPACING) {
+        this.canopySprites[i].setVisible(false)
+        continue
+      }
+      const img = this.canopySprites[i]
+      const s = img.getData('cScale') as number
+      const flip = img.getData('cFlip') as number
+      const baseH = this.gs.groundY * 0.40 * s  // each cluster ~25% of sky
+      img.setPosition(x, -8)                   // slightly above top edge
+      img.setDisplaySize(baseH * 0.45 * flip, baseH)
+      img.setVisible(true)
+    }
+  }
 
   private renderGodRays(w: number, _h: number): void {
     if (!this.godRayGfx) {
