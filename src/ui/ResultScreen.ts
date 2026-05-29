@@ -18,7 +18,6 @@ import * as sdk from '../sdk.js'
 import { type HolderTier } from '../sdk.js'
 import { tgHaptic, tgMainButton } from '../tg.js'
 import { getGameOverQuote, reviveGame } from '../game/index.js'
-import { getSprites } from '../game/assets.js'
 import {
   TIER_LABELS,
   FREE_REVIVES_PER_DAY,
@@ -255,7 +254,6 @@ function renderFinalResult(
   if (!_el) return
 
   const quote    = getGameOverQuote()
-  const sprites  = getSprites()
   const isWin    = outcome === 'win'
   const tier     = sdk.getHolderTier()
   const playsRem = sdk.getDailyPlaysRemaining()
