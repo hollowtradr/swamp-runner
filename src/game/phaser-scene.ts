@@ -111,6 +111,9 @@ export class SwampScene extends Phaser.Scene {
   private treeFarSprites: Phaser.GameObjects.Image[] = []
   private treeMidSprites: Phaser.GameObjects.Image[] = []
   private treeNearSprites: Phaser.GameObjects.Image[] = []
+  /** Foreground foliage silhouettes (Silksong-style). Depth 3.5 so they sit
+   *  in front of the player, creating parallax-bokeh framing. */
+  private fgFoliage: Phaser.GameObjects.Image[] = []
 
   // V2 painted obstacle / pickup sprite pools
   private obstaclePool: Map<string, Phaser.GameObjects.Image[]> = new Map()
@@ -324,6 +327,7 @@ export class SwampScene extends Phaser.Scene {
 
     // Render layers
     this.renderBackground(w, h)
+    this.renderGodRays(w, h)
     // Painted ground tile if available; falls back to procedural Graphics ground
     if (this.textures.exists('ground_v2')) {
       this.renderPaintedGround(w, this.gs.groundY, h)
@@ -332,6 +336,7 @@ export class SwampScene extends Phaser.Scene {
     }
     this.renderEntities(w, h)
     this.renderPlayer()
+    this.renderForegroundFoliage(w, h)
     this.renderHUD(w, h)
     this.updateHUDText(w, h)
 
@@ -551,30 +556,25 @@ export class SwampScene extends Phaser.Scene {
 
     const screenH = this.scale.height
 
-    // [sprites, parallaxRate, anchorY, tint, spacing, poolSize]
-    type LayerSpec = [Phaser.GameObjects.Image[], number, number, number, number, number]
-    // Trees plant on the visible ground line, which is below the collision
-    // line `gY` because the player sprite is drawn at 1.4× height. Match the
-    // same offset used in renderPaintedGround so the painted ground top, the
-    // player's visual feet, and the tree trunk bases all share one plane.
+    // [sprites, parallaxRate, anchorY, tint, alpha, spacing, poolSize]
+    type LayerSpec = [Phaser.GameObjects.Image[], number, number, number, number, number, number]
     const visualGroundY = gY + Math.round(PLAYER_HEIGHT * 0.4)
+    // Depth haze: far trees get strong fog (low alpha + desaturated tint),
+    // mid trees moderate fog, near trees crisp. Creates the Silksong-style
+    // atmospheric depth layering without post-processing.
     const layers: LayerSpec[] = [
-      [this.treeFarSprites,  0.15, visualGroundY + 2, 0xa8c090, FAR_SPACING,  FAR_POOL],
-      [this.treeMidSprites,  0.40, visualGroundY + 3, 0xd8ecc0, MID_SPACING,  MID_POOL],
-      [this.treeNearSprites, 0.70, visualGroundY + 4, 0xffffff, NEAR_SPACING, NEAR_POOL],
+      [this.treeFarSprites,  0.15, visualGroundY + 2, 0x7a9a6a, 0.35, FAR_SPACING,  FAR_POOL],
+      [this.treeMidSprites,  0.40, visualGroundY + 3, 0xa8c890, 0.60, MID_SPACING,  MID_POOL],
+      [this.treeNearSprites, 0.70, visualGroundY + 4, 0xd8ecc0, 0.90, NEAR_SPACING, NEAR_POOL],
     ]
 
-    for (const [pool, parallax, anchorY, tint, spacing, poolSize] of layers) {
+    for (const [pool, parallax, anchorY, tint, alpha, spacing, poolSize] of layers) {
       const off = this.gs.worldOffset * parallax
       const span = poolSize * spacing
       for (let i = 0; i < poolSize; i++) {
-        // Wrap tree position into screen-covering range
-        // ((baseX - off) % span) gives position in [-span, span]; normalize to [0, span)
         const baseX = i * spacing
         let x = ((baseX - (off % span)) % span + span) % span
-        // Shift from [0,span) to [-spacing, span-spacing] so trees appear on both sides
         if (x > span - spacing / 2) x -= span
-        // Cull if still off-screen
         if (x < -spacing || x > w + spacing) continue
 
         const img = pool[i]
@@ -585,7 +585,91 @@ export class SwampScene extends Phaser.Scene {
         img.setPosition(x, anchorY + yJitter)
         img.setDisplaySize(targetHeight * 0.48 * flip, targetHeight)
         img.setTint(tint)
+        img.setAlpha(alpha)  // depth haze
       }
+    }
+  }
+
+  // ── God rays (Silksong-style diagonal light shafts) ────────────────────
+  //
+  // Semi-transparent diagonal strips that drift slowly across the canopy,
+  // creating the "light filtering through trees" effect. Rendered as a
+  // separate graphics layer between background and trees (depth 0.3).
+
+  // ── Foreground foliage (Silksong-style parallax bokeh) ──────────────────
+  //
+  // Dark silhouette sprites at depth 3.5 (in front of the player) scrolling
+  // at 1.15× speed. Creates "foreground framing" depth. Uses reed + mushroom
+  // sprites tinted dark green with low alpha.
+
+  private renderForegroundFoliage(w: number, h: number): void {
+    const FG_POOL = 6
+    const FG_SPACING = Math.round(w * 0.55)
+    const gY = this.gs.groundY
+    const visualGroundY = gY + Math.round(PLAYER_HEIGHT * 0.4)
+    // Lazy-init pool
+    if (this.fgFoliage.length === 0) {
+      const texKeys = ['mushroom_v2', 'reed_v2'].filter((k) => this.textures.exists(k))
+      if (texKeys.length === 0) return
+      for (let i = 0; i < FG_POOL; i++) {
+        const tex = texKeys[i % texKeys.length]
+        const img = this.add.image(0, 0, tex)
+          .setOrigin(0.5, 1)
+          .setDepth(3.5)
+          .setTint(0x1a2a10)
+          .setAlpha(0.30)
+          .setVisible(false)
+        // Randomised scale per sprite
+        const s = 0.6 + (((i * 37 + 13) % 17) / 17) * 0.8  // 0.6-1.4
+        img.setData('fgScale', s)
+        img.setData('fgFlip', (i % 3 === 0) ? -1 : 1)
+        this.fgFoliage.push(img)
+      }
+    }
+    // Position: scroll at 1.15× world speed (foreground parallax)
+    const off = this.gs.worldOffset * 1.15
+    const span = FG_POOL * FG_SPACING
+    for (let i = 0; i < FG_POOL; i++) {
+      const baseX = i * FG_SPACING
+      let x = ((baseX - (off % span)) % span + span) % span
+      if (x > span - FG_SPACING / 2) x -= span
+      if (x < -FG_SPACING || x > w + FG_SPACING) {
+        this.fgFoliage[i].setVisible(false)
+        continue
+      }
+      const img = this.fgFoliage[i]
+      const s = img.getData('fgScale') as number
+      const flip = img.getData('fgFlip') as number
+      const baseH = h * 0.12 * s  // short foliage, ~12% of screen
+      img.setPosition(x, visualGroundY + 8)
+      img.setDisplaySize(baseH * 0.6 * flip, baseH)
+      img.setVisible(true)
+    }
+  }
+
+  private godRayGfx: Phaser.GameObjects.Graphics | null = null
+
+  private renderGodRays(w: number, _h: number): void {
+    if (!this.godRayGfx) {
+      this.godRayGfx = this.add.graphics().setDepth(0.3)
+    }
+    const g = this.godRayGfx; g.clear()
+    const gY = this.gs.groundY
+    const t = this.gs.gameTime
+    // 3 rays at different speeds/positions
+    const rays = [
+      { speed: 0.012, width: 120, alpha: 0.06, offset: 0 },
+      { speed: 0.008, width: 80,  alpha: 0.04, offset: w * 0.35 },
+      { speed: 0.015, width: 60,  alpha: 0.05, offset: w * 0.7 },
+    ]
+    for (const ray of rays) {
+      // Ray drifts slowly across the screen, wrapping
+      const cx = ((ray.offset + t * ray.speed * w) % (w + ray.width * 4)) - ray.width * 2
+      // Diagonal parallelogram from top to groundY
+      const skew = ray.width * 0.6  // how much the ray leans
+      g.fillStyle(0xeeffaa, ray.alpha)
+      g.fillTriangle(cx, 0, cx + ray.width, 0, cx + ray.width + skew, gY)
+      g.fillTriangle(cx, 0, cx + skew, gY, cx + ray.width + skew, gY)
     }
   }
 
