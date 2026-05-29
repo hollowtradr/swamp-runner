@@ -60,7 +60,10 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
 
   // ── Distance / score ────────────────────────────────────────────────────────
   state.distance = Math.floor(state.worldOffset / PACE_SCALE)
-  state.score = state.distance  // pickups add directly to score
+  // Score = distance traveled + accumulated pickup bonuses. Without the
+  // explicit pickupBonus accumulator, the per-frame distance recompute
+  // would overwrite any +score from collectPickup() the very next tick.
+  state.score = state.distance + state.pickupBonus
 
   // ── Speed boost timer ───────────────────────────────────────────────────────
   if (state.speedBoostActive) {
@@ -449,11 +452,17 @@ function collectPickup(state: GameState, pk: { type: string; id: number; collect
   state.pickupsCollected++
 
   if (pk.type === 'essence') {
-    state.score += 1
+    // Yellow Force-essence motes — the player's main collectible reward.
+    // Each mote = 25 Force-paces worth of score so a single capture is
+    // clearly visible in the HUD (was +1, and that +1 was overwritten by
+    // the per-frame `score = distance` recompute, so motes felt like
+    // they did nothing).
+    state.pickupBonus += 25
     state.currentCombo++
     state.longestCombo = Math.max(state.longestCombo, state.currentCombo)
   } else if (pk.type === 'holocron') {
-    state.score += 10
+    // Blue Holocrons — rare big-value pickup + Force-speed boost.
+    state.pickupBonus += 250
     state.currentCombo++
     state.longestCombo = Math.max(state.longestCombo, state.currentCombo)
     state.speedBoostActive = true

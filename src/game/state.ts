@@ -100,6 +100,10 @@ export interface GameState {
   milestones: Set<number>   // which score milestones have fired
 
   pickupsCollected: number
+  /** Accumulated bonus score from pickups. Added to distance to get final
+   *  score so that pickup rewards aren't wiped by the per-frame
+   *  `score = distance` recompute. */
+  pickupBonus: number
   maxSpeedReached: number
   longestCombo: number
   currentCombo: number
@@ -183,6 +187,7 @@ export function createInitialState(canvasW: number, canvasH: number): GameState 
     banner: null,
     milestones: new Set(),
     pickupsCollected: 0,
+    pickupBonus: 0,
     maxSpeedReached: BASE_SCROLL_SPEED,
     longestCombo: 0,
     currentCombo: 0,
