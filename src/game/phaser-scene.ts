@@ -296,37 +296,66 @@ export class SwampScene extends Phaser.Scene {
 
     this.gs.groundY = Math.round(h * 0.74)
 
-    // Detect v5 painterly plates. When all three are present we render only
-    // these and bake the ground-walk-line at 40% of the ground-plate height.
-    // v5 plate redesign WIP — disabled until mid+ground plates render. See
-    // memory/2026-05-29-swamp-runner-redesign-checkpoint.md. Falls back to
-    // the procedural Silksong atmosphere path (god rays, canopy arch, depth
-    // haze, foreground foliage) which is known good.
-    this.hasV5Plates = false
+    // v5 painterly plates — three POT (2048×1024) horizontally-scrolling
+    // tile-sprites replace all procedural sky/tree/ground/foliage layers.
+    // Depth order: canopy (0) → mid trees (0.5) → ground band (1.0) →
+    // entities (2) → player (3). Player walks ON the ground band's painted
+    // top edge at `visualGroundY`.
+    this.hasV5Plates =
+      this.textures.exists('plate_canopy') &&
+      this.textures.exists('plate_mid') &&
+      this.textures.exists('plate_ground')
+    console.log('[v5 plates]', {
+      canopy: this.textures.exists('plate_canopy'),
+      mid: this.textures.exists('plate_mid'),
+      ground: this.textures.exists('plate_ground'),
+      hasV5: this.hasV5Plates,
+    })
+
     if (this.hasV5Plates) {
-      // Background canopy plate — fills top 70% of screen, scrolls slowest
-      this.plateCanopy = this.add.tileSprite(0, 0, w, Math.round(h * 0.70), 'plate_canopy')
+      // CANOPY — fills entire screen, scrolls slowest (15%). Image has
+      // canopy art in top 65%, atmospheric haze in bottom 35%. We display
+      // it full-screen so the haze covers the area where mid/ground sit.
+      this.plateCanopy = this.add.tileSprite(0, 0, w, h, 'plate_canopy')
         .setOrigin(0, 0)
         .setDepth(0.0)
-      // Mid-trees plate — fills middle 50% of screen, scrolls medium
-      this.plateMid = this.add.tileSprite(0, Math.round(h * 0.18), w, Math.round(h * 0.56), 'plate_mid')
+      // Match plate native aspect (2:1 source) to vertical screen by stretching
+      // tileScaleY; horizontal tiling stays seamless because POT.
+      const canopySrc = this.textures.get('plate_canopy').getSourceImage() as HTMLImageElement
+      this.plateCanopy.tileScaleY = h / canopySrc.height
+      this.plateCanopy.tileScaleX = h / canopySrc.height  // uniform scale, keep aspect
+
+      // MID TREES — fills bottom 75% of screen so trees grow up from the
+      // visual ground area into the canopy. JPG haze top blends with canopy.
+      const midY = Math.round(h * 0.20)
+      const midH = h - midY
+      this.plateMid = this.add.tileSprite(0, midY, w, midH, 'plate_mid')
         .setOrigin(0, 0)
-        .setDepth(0.2)
-      // Ground plate (PNG with transparent top 40%). Walk-line is at the
-      // 40% mark from the top of the image. We set plate height so the
-      // painted portion (bottom 60%) exactly fills from visualGroundY to
-      // the bottom of the screen.
+        .setDepth(0.5)
+      const midSrc = this.textures.get('plate_mid').getSourceImage() as HTMLImageElement
+      this.plateMid.tileScaleY = midH / midSrc.height
+      this.plateMid.tileScaleX = midH / midSrc.height
+
+      // GROUND — PNG with transparent top 48% and painted moss/roots/mushrooms
+      // in bottom 52%. We size the plate so its 48% line lands at visualGroundY.
       const visualGroundY = this.gs.groundY + Math.round(PLAYER_HEIGHT * 0.4)
-      const paintedScreenH = h - visualGroundY  // pixels from walk line to bottom
-      // The painted region of the ground PNG occupies the bottom 52% of the
-      // source image (transparent top 48%). Walk-line in source = 48% from top.
+      const paintedScreenH = h - visualGroundY  // pixels from walk line to bottom of screen
       const plateH = Math.round(paintedScreenH / 0.52)
       const plateTop = visualGroundY - Math.round(plateH * 0.48)
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate_ground')
         .setOrigin(0, 0)
-        .setDepth(2.5)
-      console.log('[plate ground]', { visualGroundY, paintedScreenH, plateH, plateTop, screenH: h })
+        .setDepth(1.0)
+      const groundSrc = this.textures.get('plate_ground').getSourceImage() as HTMLImageElement
+      this.plateGround.tileScaleY = plateH / groundSrc.height
+      this.plateGround.tileScaleX = plateH / groundSrc.height
+
       this.v5GroundLineY = visualGroundY
+      console.log('[v5 placement]', {
+        screen: { w, h },
+        canopy: { x: 0, y: 0, w, h, tileScaleY: this.plateCanopy.tileScaleY.toFixed(3) },
+        mid: { x: 0, y: midY, w, h: midH, tileScaleY: this.plateMid.tileScaleY.toFixed(3) },
+        ground: { x: 0, y: plateTop, w, h: plateH, walkLineY: visualGroundY, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
+      })
     }
 
     this.startBobTween()
