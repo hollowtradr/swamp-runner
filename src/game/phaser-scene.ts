@@ -540,9 +540,14 @@ export class SwampScene extends Phaser.Scene {
       }
     }
 
-    ensurePool(this.treeFarSprites,  'tree_far_v2',  0.5, 0.20, FAR_POOL)   // 20% screen height, ~6 visible
-    ensurePool(this.treeMidSprites,  'tree_mid_v2',  0.7, 0.30, MID_POOL)   // 30% screen height, ~3 visible
-    ensurePool(this.treeNearSprites, 'tree_near_v2', 0.9, 0.40, NEAR_POOL)  // 40% screen height, ~1.5 visible
+    // Tree scale = fraction of screen height for each parallax layer. These
+    // are bottom-anchored sprites planted at the ground line, so the value
+    // represents how tall the tree appears above ground. Tuned smaller now
+    // that trees actually plant on the ground (previously they floated, so
+    // big values were partially clipped above the visible area).
+    ensurePool(this.treeFarSprites,  'tree_far_v2',  0.5, 0.14, FAR_POOL)   // distant horizon trees
+    ensurePool(this.treeMidSprites,  'tree_mid_v2',  0.7, 0.20, MID_POOL)   // mid-ground silhouettes
+    ensurePool(this.treeNearSprites, 'tree_near_v2', 0.9, 0.28, NEAR_POOL)  // near backdrop trees (still behind player)
 
     const screenH = this.scale.height
 
