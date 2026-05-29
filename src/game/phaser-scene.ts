@@ -367,11 +367,17 @@ export class SwampScene extends Phaser.Scene {
       // visualGroundY = groundY + 0.4*PLAYER_HEIGHT was a v5 trick where
       // the ground BAND started below feet; for v6 with a painted moss
       // SURFACE the top edge must sit AT the feet or Yoda floats.
-      const GROUND_PAINT_START = 0.645  // measured from PNG alpha
-      const GROUND_PAINT_FRAC = 1 - GROUND_PAINT_START  // 0.355
-      const groundSurfaceY = this.gs.groundY  // = player's feet
+      // PNG alpha measured: rows 64.5%-91% opaque, top 64.5% and bottom 9%
+      // both fully transparent (bottom = unused water-reflection zone).
+      // Map painted SPAN (0.645 → 0.91 = 0.265 of source) to screen span
+      // groundY → screen-bottom, so moss top hits feet AND moss bottom
+      // hits screen bottom (no air gap below).
+      const GROUND_PAINT_START = 0.645
+      const GROUND_PAINT_END = 0.91
+      const GROUND_PAINT_SPAN = GROUND_PAINT_END - GROUND_PAINT_START  // 0.265
+      const groundSurfaceY = this.gs.groundY
       const paintedScreenH = h - groundSurfaceY
-      const plateH = Math.round(paintedScreenH / GROUND_PAINT_FRAC)
+      const plateH = Math.round(paintedScreenH / GROUND_PAINT_SPAN)
       const plateTop = groundSurfaceY - Math.round(plateH * GROUND_PAINT_START)
       const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
