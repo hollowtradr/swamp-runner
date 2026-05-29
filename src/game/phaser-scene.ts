@@ -169,6 +169,12 @@ export class SwampScene extends Phaser.Scene {
     // Original Egor-style v1 sprites
     this.load.image('yoda_idle',   '/sprites/v4/yoda_idle_v4.png')
     this.load.image('yoda_idle_b', '/sprites/v4/yoda_idle_b_v4.png')
+    // 4-frame walk cycle generated via fal.ai Wan2.2 I2V from yoda_idle_v4.png.
+    // Play order: walk_1 (pass-R) -> walk_2 (contact-R) -> walk_3 (pass-L) -> walk_4 (contact-L).
+    this.load.image('yoda_walk_1', '/sprites/v4/yoda_walk_1.png')
+    this.load.image('yoda_walk_2', '/sprites/v4/yoda_walk_2.png')
+    this.load.image('yoda_walk_3', '/sprites/v4/yoda_walk_3.png')
+    this.load.image('yoda_walk_4', '/sprites/v4/yoda_walk_4.png')
     // V2 painted assets (Stage 2 — Gemini-generated, Egor-style)
     this.load.image('yoda_jump',   '/sprites/v4/yoda_jump_v4.png')
     this.load.image('yoda_hit',    '/sprites/v4/yoda_hit_v4.png')
@@ -1321,7 +1327,8 @@ export class SwampScene extends Phaser.Scene {
     // Apply bob offset for idle run; anchor bottom to state position
     // v6 walk-cycle uses runBobY computed below from frame-swap phase;
     // suppress the old tween bob during running to avoid double-bob.
-    const bobY = (p.anim === 'running' && this.textures.exists('yoda_idle_b')) ? 0
+    const hasAnyWalkFrames = this.textures.exists('yoda_walk_1') || this.textures.exists('yoda_idle_b')
+    const bobY = (p.anim === 'running' && hasAnyWalkFrames) ? 0
       : p.anim === 'running' ? -this.bobOffset : 0
     // Sprite alpha bbox has empty padding below the planted foot when other foot is lifted;
     // compensate so the planted foot visually touches ground. Also Egor sticker has padding
@@ -1352,19 +1359,32 @@ export class SwampScene extends Phaser.Scene {
       // what reads as walking instead of shimmying.
       let targetTex: string | null = null  // null = don't override syncPlayerAnim's choice
       let runBobY = 0  // vertical body bob for walk-cycle weight transfer
-      if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
-        // SOTA biped walk cadence: ~2 steps/sec = 1 Hz full cycle.
-        // Each FOOTFALL drops the body; mid-stride lifts it. With a 2-frame
-        // set, we get one drop per frame swap. Frame swap drives the legs;
-        // synchronized vertical bob drives weight; lean/squash REMOVED —
-        // they were fighting the frame swap and reading as shimmy.
-        const STEP_HZ = 1.9  // ~1.9 full cycles/sec, natural jog pace
+      const hasWalkCycle = this.textures.exists('yoda_walk_1') &&
+        this.textures.exists('yoda_walk_2') &&
+        this.textures.exists('yoda_walk_3') &&
+        this.textures.exists('yoda_walk_4')
+      if (p.anim === 'running' && hasWalkCycle) {
+        // 4-frame walk cycle from fal.ai Wan2.2 I2V keyframes:
+        //   0: walk_1 = pass-R   (legs passing, right under body)
+        //   1: walk_2 = contact-R (right foot just planted forward)
+        //   2: walk_3 = pass-L   (legs passing, left under body)
+        //   3: walk_4 = contact-L (left foot just planted forward)
+        // One full cycle = 2 steps. Natural jog cadence ~1.9 Hz → each
+        // frame held ~131 ms.
+        const CYCLE_HZ = 1.9
+        const phase = (this.gs.gameTime * CYCLE_HZ) % 1  // 0..1 per cycle
+        const frameIdx = Math.floor(phase * 4) % 4
+        targetTex = `yoda_walk_${frameIdx + 1}`
+        // Body bob: lowest on CONTACT (frames 1,3 = idx 1,3), highest on PASS (idx 0,2).
+        // Two contacts per cycle → sin(2*phase*2pi). Negative = up.
+        const bobPhase = phase * Math.PI * 2 * 2
+        runBobY = -Math.abs(Math.sin(bobPhase + Math.PI / 2)) * (PH * 0.045)
+      } else if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
+        // 2-frame fallback if walk cycle missing
+        const STEP_HZ = 1.9
         const phase = this.gs.gameTime * STEP_HZ * Math.PI * 2
         const onFrameB = Math.sin(phase) > 0
         targetTex = onFrameB ? 'yoda_idle_b' : 'yoda_idle'
-        // Bob: body LIFTS between footfalls, DROPS at each contact.
-        // Two footfalls per cycle → use |cos(phase)| inverted.
-        // Negative = up on screen (smaller y). Amplitude ~5% PH.
         runBobY = -Math.abs(Math.sin(phase * 2)) * (PH * 0.05) + (PH * 0.025)
       } else if (p.anim === 'running') {
         // Fallback (no idle_b texture): original shimmy
