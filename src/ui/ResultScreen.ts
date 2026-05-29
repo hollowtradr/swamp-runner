@@ -179,8 +179,11 @@ async function renderReviveOffer(
         <div class="revive-buttons">
           <button class="btn btn-success swamp-btn revive-btn revive-btn-free" id="revive-free">
             🎁 Use Free Revive
-            <span class="revive-btn-sub">${freeUsed + 1}/${freePerDay} used today</span>
+            <span class="revive-btn-sub">${freePerDay - freeUsed} of ${freePerDay} left today · 1 per run</span>
           </button>
+        </div>
+        <div class="revive-rule-note">
+          One revive per run. ${freePerDay > 1 ? `Your other ${freePerDay - 1} carry over to your next runs today.` : ''}
         </div>
 
         ${isLowTier ? `

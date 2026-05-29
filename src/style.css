@@ -837,6 +837,16 @@ html, body {
   white-space: nowrap;
 }
 
+.revive-rule-note {
+  font-family: 'Fraunces', serif;
+  font-size: 11px;
+  color: var(--parchment-dk);
+  text-align: center;
+  line-height: 1.4;
+  opacity: 0.85;
+  padding: 2px 14px 0;
+}
+
 .revive-upsell {
   font-family: 'IM Fell English', 'Georgia', serif;
   font-style: italic;

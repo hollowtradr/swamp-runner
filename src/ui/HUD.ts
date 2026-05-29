@@ -39,51 +39,28 @@ const TIER_TOOLTIPS: Record<HolderTier, string> = {
 
 export function initHUD(): void {
   _el = document.getElementById('hud')!
+  // In-run HUD is intentionally minimal: just the live midi-this-run chip.
+  // The holder-tier badge previously rendered here was crowding the canvas
+  // Force-Paces parchment + Master-Yoda quote band, and the player already
+  // sees their tier on the title screen + result screen. Keep the function
+  // signature so callers (initSession, showHUD) stay no-op compatible.
   _el.innerHTML = `
     <div class="hud-midi-badge" id="hud-midi-badge">
       <span class="hud-midi-icon">✨</span>
       <span class="hud-midi-val" id="hud-midi">+0</span>
       <span class="hud-midi-label">this run</span>
     </div>
-    <div class="hud-tier-badge" id="hud-tier-badge" role="button" tabindex="0" aria-label="Holder tier info">
-      <span class="hud-tier-label" id="hud-tier-label">Initiate</span>
-    </div>
-    <div class="hud-tier-tooltip hidden" id="hud-tier-tooltip" role="tooltip"></div>
   `
   _midiEl = document.getElementById('hud-midi')
-
-  const tierBadge = document.getElementById('hud-tier-badge')
-  const tierTip   = document.getElementById('hud-tier-tooltip')
-
-  // Tap/click → toggle tooltip
-  tierBadge?.addEventListener('click', (e) => {
-    e.stopPropagation()
-    tierTip?.classList.toggle('hidden')
-  })
-  tierBadge?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') tierTip?.classList.toggle('hidden')
-  })
-
-  // Dismiss tooltip when clicking elsewhere
-  document.addEventListener('click', () => {
-    tierTip?.classList.add('hidden')
-  })
-
-  refreshTierBadge()
+  // Reference tooltip dict so unused-var lint stays quiet now that the badge
+  // is gone but we keep the labels for future re-introduction.
+  void TIER_LABELS; void TIER_TOOLTIPS
 }
 
-/** Call after initSession resolves so the badge reflects the actual tier. */
+/** Kept as a no-op so external callers (e.g. SDK tier-change events) don't break. */
 export function refreshTierBadge(): void {
-  const tier    = getHolderTier()
-  const labelEl = document.getElementById('hud-tier-label')
-  const tipEl   = document.getElementById('hud-tier-tooltip')
-  const badgeEl = document.getElementById('hud-tier-badge')
-  if (labelEl) labelEl.textContent = TIER_LABELS[tier]
-  if (tipEl)   tipEl.textContent   = TIER_TOOLTIPS[tier]
-  if (badgeEl) {
-    badgeEl.classList.remove('tier-initiate', 'tier-padawan', 'tier-knight', 'tier-master', 'tier-grandmaster')
-    badgeEl.classList.add(`tier-${tier}`)
-  }
+  // intentionally empty — tier badge no longer rendered during gameplay
+  void getHolderTier
 }
 
 // ── Visibility ────────────────────────────────────────────────────────────────
