@@ -129,6 +129,7 @@ export class SwampScene extends Phaser.Scene {
   private plateCanopy: Phaser.GameObjects.TileSprite | null = null
   private plateMid: Phaser.GameObjects.TileSprite | null = null
   private plateGround: Phaser.GameObjects.TileSprite | null = null
+  private plateEarth: Phaser.GameObjects.Rectangle | null = null
 
   /** True once preload found all three v5 plates. */
   private hasV5Plates = false
@@ -352,50 +353,61 @@ export class SwampScene extends Phaser.Scene {
       this.plateCanopy.tileScaleY = h / canopySrc6.height
       this.plateCanopy.tileScaleX = h / canopySrc6.height
 
-      // MID TREES overlay — trunks span ~80% of frame height. Place anchored
-      // so trunk bases sit near the painted ground line.
+      // MID TREES overlay — trunks span ~80% of frame height. Pull DOWN
+      // by trunkBuryY so roots/bases disappear behind earth fill + moss
+      // foreground (HK/Ori: trees emerge FROM the ground, not stand ON it).
+      const PH = PLAYER_HEIGHT * 1.4
+      const visualFeetY = this.gs.groundY - Math.round(PH * 0.35)
+      const trunkBuryY = Math.round(PH * 0.20)
       const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
-      this.plateMid = this.add.tileSprite(0, 0, w, h, 'plate6_mid')
+      this.plateMid = this.add.tileSprite(0, trunkBuryY, w, h, 'plate6_mid')
         .setOrigin(0, 0)
         .setDepth(0.5)
       this.plateMid.tileScaleY = h / midSrc6.height
       this.plateMid.tileScaleX = h / midSrc6.height
 
-      // GROUND overlay — measured from actual alpha map of bg_ground.png:
-      // painted moss becomes substantial at row 64.5% of source. Anchor
-      // that line to the PLAYER'S FEET (groundY), not visualGroundY.
-      // visualGroundY = groundY + 0.4*PLAYER_HEIGHT was a v5 trick where
-      // the ground BAND started below feet; for v6 with a painted moss
-      // SURFACE the top edge must sit AT the feet or Yoda floats.
-      // PNG alpha measured: rows 64.5%-89% fully opaque; 89%-92% soft
-      // taper; bottom 8% fully transparent (water-reflection zone unused).
-      // Clip END at 0.89 to kill alpha-taper bleed at screen bottom.
+      // EARTH FILL — solid opaque slab from visual feet line to screen
+      // bottom. This is the HK/Ori "walk surface": player feet always meet
+      // a non-transparent layer, no air bleed possible. Color sampled from
+      // moss-shadow region of PNG so it reads as continuous with painted
+      // moss above. Depth 0.95 (behind moss foreground at 2.5, in front of
+      // trees at 0.5).
+      this.plateEarth = this.add.rectangle(0, visualFeetY, w, h - visualFeetY, 0x161e17)
+        .setOrigin(0, 0)
+        .setDepth(0.95)
+
+      // GROUND/MOSS overlay — painted vegetation as FOREGROUND. Sits ABOVE
+      // the player (depth 2.5) so it occludes ankles/shins → wading effect.
+      // PNG alpha: rows 64.5%-89% opaque; clip END at 0.89 to skip soft
+      // taper. Map painted span (0.645—0.89) so its TOP edge sits at
+      // visualFeetY - mossOverlap (so moss covers ~12px of lower legs)
+      // and its bottom edge lands at the screen bottom.
       const GROUND_PAINT_START = 0.645
       const GROUND_PAINT_END = 0.89
-      const GROUND_PAINT_SPAN = GROUND_PAINT_END - GROUND_PAINT_START  // 0.245
-      // Yoda sprite uses origin (0.5,0.5), display-size PH = PLAYER_HEIGHT*1.4,
-      // with groundOffset = PH*0.15 (running). Net: visual feet land at
-      // py + PH/2 = groundY - PH/2 + PH*0.15 = groundY - PH*0.35.
-      // Moss top must hit the VISUAL feet, not the logical groundY.
-      const PH = PLAYER_HEIGHT * 1.4
-      const groundSurfaceY = this.gs.groundY - Math.round(PH * 0.35)
-      const paintedScreenH = h - groundSurfaceY
+      const GROUND_PAINT_SPAN = GROUND_PAINT_END - GROUND_PAINT_START
+      const mossOverlap = Math.round(PH * 0.15)
+      const mossTopY = visualFeetY - mossOverlap
+      const paintedScreenH = h - mossTopY
       const plateH = Math.round(paintedScreenH / GROUND_PAINT_SPAN)
-      const plateTop = groundSurfaceY - Math.round(plateH * GROUND_PAINT_START)
+      const plateTop = mossTopY - Math.round(plateH * GROUND_PAINT_START)
       const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
+      // FOREGROUND moss — depth 4.5, in front of player (4), so player
+      // sinks/wades into the grass HK-style. Earth fill (0.95) behind
+      // ensures feet always meet a solid surface even if moss has alpha
+      // taper at the line where it meets the player.
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
         .setOrigin(0, 0)
-        .setDepth(1.0)
+        .setDepth(4.5)
       this.plateGround.tileScaleY = plateH / groundSrc6.height
       this.plateGround.tileScaleX = plateH / groundSrc6.height
 
-      this.v5GroundLineY = groundSurfaceY
+      this.v5GroundLineY = visualFeetY
       console.log('[v6 placement]', {
         screen: { w, h },
         sky: { tileScaleY: this.plateSky.tileScaleY.toFixed(3) },
         canopy: { tileScaleY: this.plateCanopy.tileScaleY.toFixed(3) },
         mid: { tileScaleY: this.plateMid.tileScaleY.toFixed(3) },
-        ground: { y: plateTop, h: plateH, walkLineY: groundSurfaceY, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
+        ground: { y: plateTop, h: plateH, walkLineY: visualFeetY, mossOverlap, hasEarth: !!this.plateEarth, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
       })
     } else if (this.hasV5Plates) {
       // CANOPY — fills entire screen, scrolls slowest (15%). Image has
