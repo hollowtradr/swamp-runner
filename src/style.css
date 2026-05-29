@@ -30,6 +30,11 @@
   --accent:      #6aaa38;
   --accent-glow: #aaea60;
   --gold:        #d4a820;
+  /* Darker amber-brown for gold-colored text rendered on the parchment
+   * cream background. The pure --gold (#d4a820) fails contrast on parchment
+   * (#f0dca0) — yellow-on-cream is unreadable. Use --gold-ink for any text
+   * sitting on a parchment, parchment-dk, or other warm-light surface. */
+  --gold-ink:    #6b4a08;
   --silver:      #90a878;
   --text:        #e8f0e0;
   --text-muted:  #90a878;
@@ -488,8 +493,9 @@ html, body {
 }
 
 .midi-note {
-  font-size: 10px;
-  color: rgba(90,58,10,0.6);
+  font-size: 10.5px;
+  color: var(--parchment-text);
+  opacity: 0.85;
   margin-top: 4px;
 }
 
@@ -503,8 +509,9 @@ html, body {
 }
 .midi-projected strong {
   font-family: 'Cinzel Decorative', serif;
-  color: var(--gold);
-  font-size: 18px;
+  color: var(--gold-ink);
+  font-size: 20px;
+  font-weight: 800;
 }
 .submit-btn {
   margin-top: 6px;
@@ -550,7 +557,8 @@ html, body {
 .result-rank {
   font-family: 'Fraunces', serif;
   font-size: 13px;
-  color: rgba(90, 58, 10, 0.7);
+  font-weight: 600;
+  color: var(--parchment-text);
 }
 
 .result-actions {
@@ -928,8 +936,8 @@ html, body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--accent-glow);
+  font-weight: 700;
 }
 
 .cosmetic-shelf-item {
@@ -1179,18 +1187,19 @@ html, body {
   font-family: 'Fraunces', serif;
   font-size: 13px;
   font-weight: 700;
-  color: var(--gold);
-  border-color: rgba(212, 168, 32, 0.45);
-  background: rgba(212, 168, 32, 0.08);
+  color: var(--gold-ink);
+  border: 1.5px solid rgba(107, 74, 8, 0.55);
+  background: rgba(212, 168, 32, 0.18);
   padding: 9px 18px;
   border-radius: 20px;
   width: auto;
   max-width: none;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
 .extra-play-btn:hover {
-  background: rgba(212, 168, 32, 0.18);
+  background: rgba(212, 168, 32, 0.32);
+  border-color: rgba(107, 74, 8, 0.85);
   box-shadow: 0 0 10px rgba(212, 168, 32, 0.25);
 }
 
