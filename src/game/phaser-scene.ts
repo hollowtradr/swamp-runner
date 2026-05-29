@@ -553,16 +553,15 @@ export class SwampScene extends Phaser.Scene {
 
     // [sprites, parallaxRate, anchorY, tint, spacing, poolSize]
     type LayerSpec = [Phaser.GameObjects.Image[], number, number, number, number, number]
-    // anchorY = the Y coordinate where the BOTTOM of each tree sprite sits
-    // (sprites use origin 0.5, 1 = bottom-center). Previously the far/mid
-    // layers were placed at gY*0.95 / gY*0.99 which planted them 5% / 1%
-    // ABOVE the ground line, making them visually float. Snap all layers
-    // to the ground line so their trunks rest on the same plane the player
-    // runs on. Tint + scale + parallax still convey depth.
+    // Trees plant on the visible ground line, which is below the collision
+    // line `gY` because the player sprite is drawn at 1.4× height. Match the
+    // same offset used in renderPaintedGround so the painted ground top, the
+    // player's visual feet, and the tree trunk bases all share one plane.
+    const visualGroundY = gY + Math.round(PLAYER_HEIGHT * 0.4)
     const layers: LayerSpec[] = [
-      [this.treeFarSprites,  0.15, gY + 2, 0xa8c090, FAR_SPACING,  FAR_POOL],
-      [this.treeMidSprites,  0.40, gY + 3, 0xd8ecc0, MID_SPACING,  MID_POOL],
-      [this.treeNearSprites, 0.70, gY + 4, 0xffffff, NEAR_SPACING, NEAR_POOL],
+      [this.treeFarSprites,  0.15, visualGroundY + 2, 0xa8c090, FAR_SPACING,  FAR_POOL],
+      [this.treeMidSprites,  0.40, visualGroundY + 3, 0xd8ecc0, MID_SPACING,  MID_POOL],
+      [this.treeNearSprites, 0.70, visualGroundY + 4, 0xffffff, NEAR_SPACING, NEAR_POOL],
     ]
 
     for (const [pool, parallax, anchorY, tint, spacing, poolSize] of layers) {
@@ -595,9 +594,17 @@ export class SwampScene extends Phaser.Scene {
    * Replaces the flat solid-color ground strip with painted swamp ground.
    */
   private renderPaintedGround(w: number, gY: number, screenH: number): void {
-    const bandHeight = screenH - gY + 8
+    // Visual ground line: the painted ground tile's TOP edge must align with
+    // the player's visual feet, not with state.groundY (the collision line).
+    // The player sprite is drawn at 1.4× PLAYER_HEIGHT but positioned with
+    // top = groundY - PLAYER_HEIGHT, so visually the player's feet end at
+    // ~groundY + (PLAYER_HEIGHT * 0.4). We snap the painted ground top to
+    // that line so the player walks on the visible ground instead of above
+    // a band that floats below.
+    const visualGroundY = gY + Math.round(PLAYER_HEIGHT * 0.4)
+    const bandHeight = screenH - visualGroundY + 8
     if (!this.groundTile) {
-      this.groundTile = this.add.tileSprite(0, gY - 4, w, bandHeight, 'ground_v2')
+      this.groundTile = this.add.tileSprite(0, visualGroundY, w, bandHeight, 'ground_v2')
         .setOrigin(0, 0)
         .setDepth(1.0)
       this.groundTile.tileScaleX = 0.6
@@ -606,7 +613,7 @@ export class SwampScene extends Phaser.Scene {
     // Scroll the tile horizontally with the world (ground moves at 100% rate)
     this.groundTile.tilePositionX = this.gs.worldOffset
     this.groundTile.setSize(w, bandHeight)
-    this.groundTile.setPosition(0, gY - 4)
+    this.groundTile.setPosition(0, visualGroundY)
   }
 
   private drawTreeLayer(
