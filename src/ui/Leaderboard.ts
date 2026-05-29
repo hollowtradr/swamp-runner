@@ -17,9 +17,9 @@ export async function showLeaderboard(): Promise<void> {
   _overlay = document.createElement('div')
   _overlay.className = 'leaderboard-overlay'
   _overlay.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="lb-header">
       <span class="leaderboard-title">🏆 Leaderboard</span>
-      <button id="lb-close" class="btn btn-ghost" style="padding:6px 14px;font-size:14px;">✕ Close</button>
+      <button id="lb-close" class="lb-close-btn" aria-label="Close leaderboard">✕</button>
     </div>
     <div class="lb-mando-banner" aria-hidden="true">
       <picture>

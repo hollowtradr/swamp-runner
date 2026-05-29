@@ -548,10 +548,16 @@ export class SwampScene extends Phaser.Scene {
 
     // [sprites, parallaxRate, anchorY, tint, spacing, poolSize]
     type LayerSpec = [Phaser.GameObjects.Image[], number, number, number, number, number]
+    // anchorY = the Y coordinate where the BOTTOM of each tree sprite sits
+    // (sprites use origin 0.5, 1 = bottom-center). Previously the far/mid
+    // layers were placed at gY*0.95 / gY*0.99 which planted them 5% / 1%
+    // ABOVE the ground line, making them visually float. Snap all layers
+    // to the ground line so their trunks rest on the same plane the player
+    // runs on. Tint + scale + parallax still convey depth.
     const layers: LayerSpec[] = [
-      [this.treeFarSprites,  0.15, gY * 0.95, 0xa8c090, FAR_SPACING,  FAR_POOL],
-      [this.treeMidSprites,  0.40, gY * 0.99, 0xd8ecc0, MID_SPACING,  MID_POOL],
-      [this.treeNearSprites, 0.70, gY + 4,   0xffffff, NEAR_SPACING, NEAR_POOL],
+      [this.treeFarSprites,  0.15, gY + 2, 0xa8c090, FAR_SPACING,  FAR_POOL],
+      [this.treeMidSprites,  0.40, gY + 3, 0xd8ecc0, MID_SPACING,  MID_POOL],
+      [this.treeNearSprites, 0.70, gY + 4, 0xffffff, NEAR_SPACING, NEAR_POOL],
     ]
 
     for (const [pool, parallax, anchorY, tint, spacing, poolSize] of layers) {

@@ -626,12 +626,42 @@ html, body {
   overflow-y: auto;
 }
 
+.lb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
 .leaderboard-title {
   font-family: 'Cinzel Decorative', serif;
   font-size: 16px;
   font-weight: 700;
   color: var(--parchment);
-  text-align: center;
+}
+
+.lb-close-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 220, 160, 0.3);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--parchment);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.lb-close-btn:hover,
+.lb-close-btn:focus-visible {
+  background: rgba(212, 168, 32, 0.18);
+  border-color: rgba(212, 168, 32, 0.6);
+  outline: none;
 }
 
 .lb-mando-banner {
