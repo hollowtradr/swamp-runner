@@ -63,6 +63,12 @@ const FEATURED_COSMETICS: CosmeticItem[] = [
   { name: 'Holocron Pet', tonPrice: 5.0, yodaBase: 2300, itemId: 'holocron_pet', itemType: 'cosmetic_skin' },
 ]
 
+// Feature flag: the SDK cosmetic-purchase flow is wired and tested, but we have
+// no actual cosmetic skins shipping yet (no asset, no application effect).
+// Hide the shelf in production until skins exist. Flip back to true to re-enable
+// for SDK regression testing.
+const SHOW_COSMETIC_SHELF = false
+
 // -- Free-revive daily counter (localStorage) ----------------------------------
 
 function freeReviveKey(): string {
@@ -289,7 +295,7 @@ function renderFinalResult(
           ${renderExtraPlayPill()}
         </div>
 
-        ${renderCosmeticShelf(tier)}
+        ${SHOW_COSMETIC_SHELF ? renderCosmeticShelf(tier) : ''}
 
         <div class="result-actions">
           <button class="btn btn-primary swamp-btn" id="result-play-again">
