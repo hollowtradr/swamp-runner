@@ -298,16 +298,11 @@ export class SwampScene extends Phaser.Scene {
 
     // Detect v5 painterly plates. When all three are present we render only
     // these and bake the ground-walk-line at 40% of the ground-plate height.
-    this.hasV5Plates =
-      this.textures.exists('plate_canopy') &&
-      this.textures.exists('plate_mid') &&
-      this.textures.exists('plate_ground')
-    console.log('[swamp v5]', {
-      canopy: this.textures.exists('plate_canopy'),
-      mid: this.textures.exists('plate_mid'),
-      ground: this.textures.exists('plate_ground'),
-      hasV5: this.hasV5Plates,
-    })
+    // v5 plate redesign WIP — disabled until mid+ground plates render. See
+    // memory/2026-05-29-swamp-runner-redesign-checkpoint.md. Falls back to
+    // the procedural Silksong atmosphere path (god rays, canopy arch, depth
+    // haze, foreground foliage) which is known good.
+    this.hasV5Plates = false
     if (this.hasV5Plates) {
       // Background canopy plate — fills top 70% of screen, scrolls slowest
       this.plateCanopy = this.add.tileSprite(0, 0, w, Math.round(h * 0.70), 'plate_canopy')
