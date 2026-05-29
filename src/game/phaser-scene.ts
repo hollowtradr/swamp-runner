@@ -169,19 +169,23 @@ export class SwampScene extends Phaser.Scene {
     // Original Egor-style v1 sprites
     this.load.image('yoda_idle',   '/sprites/v4/yoda_idle_v4.png')
     this.load.image('yoda_idle_b', '/sprites/v4/yoda_idle_b_v4.png')
-    // 6-frame walk cycle from fal.ai Wan2.2 I2V (yoda_idle_v4.png → walk video,
-    // cycle frames hand-picked at indices 100,115,130,145,70,85 of the original
-    // walk video). Vision-validated cycle order: contact-R → pass-L → contact-L
-    // → pass-R → contact-L(alt) → pass-R(alt). Normalized to 97.9% fill.
+    // 8-frame walk cycle from fal.ai Wan2.2 I2V (yoda_idle_v4.png → walk video,
+    // vision-validated cycle frames at source indices 70,78,86,94,102,110,118,142).
+    // Cycle order: contact-R → pass → contact-L → down → pass-HIGH → pass-desc
+    // → contact-R-new → contact-L. Hollow Knight standard is 8 frames @ ~12fps.
+    // All frames normalized to 504×479 canvas at 97.9% fill, head-x aligned.
     this.load.image('yoda_walk_1', '/sprites/v4/yoda_walk_1.png')
     this.load.image('yoda_walk_2', '/sprites/v4/yoda_walk_2.png')
     this.load.image('yoda_walk_3', '/sprites/v4/yoda_walk_3.png')
     this.load.image('yoda_walk_4', '/sprites/v4/yoda_walk_4.png')
     this.load.image('yoda_walk_5', '/sprites/v4/yoda_walk_5.png')
     this.load.image('yoda_walk_6', '/sprites/v4/yoda_walk_6.png')
-    // Jump takeoff frame (side-profile, right-facing) for FIRST jump only.
+    this.load.image('yoda_walk_7', '/sprites/v4/yoda_walk_7.png')
+    this.load.image('yoda_walk_8', '/sprites/v4/yoda_walk_8.png')
+    // Jump takeoff = walk frame 5 (highest pass pose, leg lifted, body up).
+    // Same exact character/canvas/scale as walk frames — no visual jump.
     // Double-jump still uses yoda_jump_v4 (front-facing, arms raised).
-    this.load.image('yoda_jump_takeoff', '/sprites/v4/yoda_jump_takeoff_v6.png')
+    this.load.image('yoda_jump_takeoff', '/sprites/v4/yoda_jump_takeoff.png')
     // V2 painted assets (Stage 2 — Gemini-generated, Egor-style)
     this.load.image('yoda_jump',   '/sprites/v4/yoda_jump_v4.png')
     this.load.image('yoda_hit',    '/sprites/v4/yoda_hit_v4.png')
@@ -1390,23 +1394,30 @@ export class SwampScene extends Phaser.Scene {
       let targetTex: string | null = null  // null = don't override syncPlayerAnim's choice
       let runBobY = 0  // vertical body bob for walk-cycle weight transfer
       const hasWalkCycle = this.textures.exists('yoda_walk_1') &&
-        this.textures.exists('yoda_walk_6')
+        this.textures.exists('yoda_walk_8')
       if (p.anim === 'running' && hasWalkCycle) {
-        // 6-frame walk cycle from fal.ai Wan2.2 I2V keyframes (vision-validated).
-        // Cycle order: contact-R, pass-L, contact-L, pass-R, contact-L(alt), pass-R(alt)
-        // One full cycle = 6 frames covering ~2 full steps (3 footfalls).
-        // Hollow Knight uses 8-frame runs at ~12fps. We use 6 frames at ~10fps
-        // (cycle every 600ms = 1.67 Hz) for similar smoothness.
-        const CYCLE_HZ = 1.7
-        const FRAME_COUNT = 6
+        // 8-frame walk cycle (Hollow Knight standard). At 1.5 Hz full cycle =
+        // 12fps frame swap, exactly matching Team Cherry's Knight run cycle.
+        // Cycle order (cadence-validated by vision):
+        //   1: contact-R (body low, weight on right)
+        //   2: pass (body rising)
+        //   3: contact-L (body low, weight on left)
+        //   4: down (recoil, lowest)
+        //   5: pass-HIGH (apex, body up, legs tucked)
+        //   6: pass-desc (descending)
+        //   7: contact-R (new step)
+        //   8: contact-L (loops to 1)
+        // Body lows at frames 1,3,4,7,8; high at 5; rising 2; descending 6.
+        const CYCLE_HZ = 1.5
+        const FRAME_COUNT = 8
         const phase = (this.gs.gameTime * CYCLE_HZ) % 1
         const frameIdx = Math.floor(phase * FRAME_COUNT) % FRAME_COUNT
         targetTex = `yoda_walk_${frameIdx + 1}`
-        // Body bob: 2 footfalls per cycle. CONTACT frames (1,3) = body low.
-        // PASS frames (2,4) = body high. Sin wave at 2x cycle freq, phased
-        // so trough lands on contact frames.
+        // Bob synced to the actual frame heights from the animation. The pass
+        // frames (5) carry the body high; contacts (1,3,7,8) drop it.
+        // Two footfalls per cycle → sin wave at 2x freq for vertical bob.
         const bobPhase = phase * Math.PI * 4
-        runBobY = -Math.abs(Math.sin(bobPhase + Math.PI / 2)) * (PH * 0.04)
+        runBobY = -Math.abs(Math.sin(bobPhase + Math.PI / 2)) * (PH * 0.035)
       } else if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
         // 2-frame fallback if walk cycle missing
         const STEP_HZ = 1.9
