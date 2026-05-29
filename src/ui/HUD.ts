@@ -13,8 +13,10 @@ let _el: HTMLElement | null = null
 let _midiEl: HTMLElement | null = null
 
 // Game's declared max_score in our backend manifest (used to project midi this run).
-// Backend mints midi via: round(score / max_score * 1000), capped at 1000/play.
-const MAX_SCORE = 99_999
+// Backend mints midi via: floor(score / max_score * 1000), capped at 1000/play
+// (2000 on Featured Game days). Must match manifest.json `max_score` exactly
+// or the in-run HUD projection will not match the score-submission screen.
+const MAX_SCORE = 5_000
 const MIDI_CAP_PER_PLAY = 1_000
 
 // ── Tier display config ────────────────────────────────────────────────────────
