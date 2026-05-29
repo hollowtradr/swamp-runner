@@ -361,12 +361,16 @@ export class SwampScene extends Phaser.Scene {
       this.plateMid.tileScaleY = h / midSrc6.height
       this.plateMid.tileScaleX = h / midSrc6.height
 
-      // GROUND overlay — bottom 40% painted, top 60% alpha. Sized so the
-      // 60%/40% break lands at the player walk line.
+      // GROUND overlay — measured from actual alpha map of bg_ground.png:
+      // painted moss becomes substantial at row 64.5% of source. Anchor
+      // that line to the player walk line so player + log sit ON moss,
+      // not floating in the transparent zone above it.
+      const GROUND_PAINT_START = 0.645  // measured from PNG alpha
+      const GROUND_PAINT_FRAC = 1 - GROUND_PAINT_START  // 0.355
       const visualGroundY = this.gs.groundY + Math.round(PLAYER_HEIGHT * 0.4)
       const paintedScreenH = h - visualGroundY
-      const plateH = Math.round(paintedScreenH / 0.40)
-      const plateTop = visualGroundY - Math.round(plateH * 0.60)
+      const plateH = Math.round(paintedScreenH / GROUND_PAINT_FRAC)
+      const plateTop = visualGroundY - Math.round(plateH * GROUND_PAINT_START)
       const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
         .setOrigin(0, 0)
