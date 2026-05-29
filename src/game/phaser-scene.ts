@@ -118,8 +118,23 @@ export class SwampScene extends Phaser.Scene {
   // V2 painted obstacle / pickup sprite pools
   private obstaclePool: Map<string, Phaser.GameObjects.Image[]> = new Map()
 
-  // V2 painted ground tile sprite
+  // V2 painted ground tile sprite (legacy, only used if v5 plates missing)
   private groundTile: Phaser.GameObjects.TileSprite | null = null
+
+  // v5 painterly scene plates. When all three exist we render JUST these as
+  // parallax tile-sprite scrollers and skip the procedural sky/tree/ground
+  // layers entirely. Player snaps to the ground plate's walk line.
+  private plateCanopy: Phaser.GameObjects.TileSprite | null = null
+  private plateMid: Phaser.GameObjects.TileSprite | null = null
+  private plateGround: Phaser.GameObjects.TileSprite | null = null
+
+  /** True once preload found all three v5 plates. */
+  private hasV5Plates = false
+
+  /** Y where the ground-plate's walk line sits in screen coords. Reserved
+   *  for future use to snap player feet to the painted plate's walk line. */
+  // @ts-expect-error  unused for now; will drive player anchor in next pass
+  private v5GroundLineY = 0
 
   constructor() { super({ key: 'SwampScene' }) }
 
@@ -165,6 +180,11 @@ export class SwampScene extends Phaser.Scene {
     this.load.image('mushroom_v2', '/sprites/v4/mushroom_v4.png')
     this.load.image('reed_v2',     '/sprites/v2/reed_v2.png')
     this.load.image('ground_v2',   '/sprites/v4/ground_v4.png')
+    // v5 painterly scene plates (Silksong/Ghibli style). Three horizontally-
+    // tiling sprite scrollers replace the old procedural sky+trees+ground.
+    this.load.image('plate_canopy', '/sprites/v5/bg_canopy.jpg')
+    this.load.image('plate_mid',    '/sprites/v5/bg_mid_trees.jpg')
+    this.load.image('plate_ground', '/sprites/v5/bg_ground.png')
   }
 
   create(): void {
@@ -275,6 +295,45 @@ export class SwampScene extends Phaser.Scene {
     })
 
     this.gs.groundY = Math.round(h * 0.74)
+
+    // Detect v5 painterly plates. When all three are present we render only
+    // these and bake the ground-walk-line at 40% of the ground-plate height.
+    this.hasV5Plates =
+      this.textures.exists('plate_canopy') &&
+      this.textures.exists('plate_mid') &&
+      this.textures.exists('plate_ground')
+    console.log('[swamp v5]', {
+      canopy: this.textures.exists('plate_canopy'),
+      mid: this.textures.exists('plate_mid'),
+      ground: this.textures.exists('plate_ground'),
+      hasV5: this.hasV5Plates,
+    })
+    if (this.hasV5Plates) {
+      // Background canopy plate — fills top 70% of screen, scrolls slowest
+      this.plateCanopy = this.add.tileSprite(0, 0, w, Math.round(h * 0.70), 'plate_canopy')
+        .setOrigin(0, 0)
+        .setDepth(0.0)
+      // Mid-trees plate — fills middle 50% of screen, scrolls medium
+      this.plateMid = this.add.tileSprite(0, Math.round(h * 0.18), w, Math.round(h * 0.56), 'plate_mid')
+        .setOrigin(0, 0)
+        .setDepth(0.2)
+      // Ground plate (PNG with transparent top 40%). Walk-line is at the
+      // 40% mark from the top of the image. We set plate height so the
+      // painted portion (bottom 60%) exactly fills from visualGroundY to
+      // the bottom of the screen.
+      const visualGroundY = this.gs.groundY + Math.round(PLAYER_HEIGHT * 0.4)
+      const paintedScreenH = h - visualGroundY  // pixels from walk line to bottom
+      // The painted region of the ground PNG occupies the bottom 52% of the
+      // source image (transparent top 48%). Walk-line in source = 48% from top.
+      const plateH = Math.round(paintedScreenH / 0.52)
+      const plateTop = visualGroundY - Math.round(plateH * 0.48)
+      this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate_ground')
+        .setOrigin(0, 0)
+        .setDepth(2.5)
+      console.log('[plate ground]', { visualGroundY, paintedScreenH, plateH, plateTop, screenH: h })
+      this.v5GroundLineY = visualGroundY
+    }
+
     this.startBobTween()
   }
 
@@ -326,19 +385,25 @@ export class SwampScene extends Phaser.Scene {
     this.syncPlayerAnim()
 
     // Render layers
-    this.renderBackground(w, h)
-    this.renderLightBloom(w, h)
-    this.renderGodRays(w, h)
-    this.renderCanopyArch(w, h)
-    // Painted ground tile if available; falls back to procedural Graphics ground
-    if (this.textures.exists('ground_v2')) {
-      this.renderPaintedGround(w, this.gs.groundY, h)
+    // v5 painterly plates short-circuit ALL the procedural sky/tree/ground/
+    // foliage layers. Three TileSprites scroll at their own parallax rates
+    // and the ground line is baked into the bottom plate.
+    if (this.hasV5Plates) {
+      this.renderV5Plates(w, h)
     } else {
-      this.renderGround(w, h)
+      this.renderBackground(w, h)
+      this.renderLightBloom(w, h)
+      this.renderGodRays(w, h)
+      this.renderCanopyArch(w, h)
+      if (this.textures.exists('ground_v2')) {
+        this.renderPaintedGround(w, this.gs.groundY, h)
+      } else {
+        this.renderGround(w, h)
+      }
     }
     this.renderEntities(w, h)
     this.renderPlayer()
-    this.renderForegroundFoliage(w, h)
+    if (!this.hasV5Plates) this.renderForegroundFoliage(w, h)
     this.renderHUD(w, h)
     this.updateHUDText(w, h)
 
@@ -769,6 +834,18 @@ export class SwampScene extends Phaser.Scene {
    * Render a painted ground tile band that scrolls with the world.
    * Replaces the flat solid-color ground strip with painted swamp ground.
    */
+  // ── v5 painterly plate scrollers ─────────────────────────────────────────
+  //
+  // Three TileSprite layers scrolling at distinct parallax rates. The bottom
+  // (ground) plate has the walk-line baked in; player feet snap to v5GroundLineY.
+
+  private renderV5Plates(_w: number, _h: number): void {
+    const off = this.gs.worldOffset
+    if (this.plateCanopy) this.plateCanopy.tilePositionX = off * 0.15
+    if (this.plateMid)    this.plateMid.tilePositionX    = off * 0.45
+    if (this.plateGround) this.plateGround.tilePositionX = off * 1.00
+  }
+
   private renderPaintedGround(w: number, gY: number, screenH: number): void {
     // Visual ground line: the painted ground tile's TOP edge must align with
     // the player's visual feet, not with state.groundY (the collision line).
