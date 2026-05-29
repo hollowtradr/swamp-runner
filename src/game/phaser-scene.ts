@@ -169,12 +169,19 @@ export class SwampScene extends Phaser.Scene {
     // Original Egor-style v1 sprites
     this.load.image('yoda_idle',   '/sprites/v4/yoda_idle_v4.png')
     this.load.image('yoda_idle_b', '/sprites/v4/yoda_idle_b_v4.png')
-    // 4-frame walk cycle generated via fal.ai Wan2.2 I2V from yoda_idle_v4.png.
-    // Play order: walk_1 (pass-R) -> walk_2 (contact-R) -> walk_3 (pass-L) -> walk_4 (contact-L).
+    // 6-frame walk cycle from fal.ai Wan2.2 I2V (yoda_idle_v4.png → walk video,
+    // cycle frames hand-picked at indices 100,115,130,145,70,85 of the original
+    // walk video). Vision-validated cycle order: contact-R → pass-L → contact-L
+    // → pass-R → contact-L(alt) → pass-R(alt). Normalized to 97.9% fill.
     this.load.image('yoda_walk_1', '/sprites/v4/yoda_walk_1.png')
     this.load.image('yoda_walk_2', '/sprites/v4/yoda_walk_2.png')
     this.load.image('yoda_walk_3', '/sprites/v4/yoda_walk_3.png')
     this.load.image('yoda_walk_4', '/sprites/v4/yoda_walk_4.png')
+    this.load.image('yoda_walk_5', '/sprites/v4/yoda_walk_5.png')
+    this.load.image('yoda_walk_6', '/sprites/v4/yoda_walk_6.png')
+    // Jump takeoff frame (side-profile, right-facing) for FIRST jump only.
+    // Double-jump still uses yoda_jump_v4 (front-facing, arms raised).
+    this.load.image('yoda_jump_takeoff', '/sprites/v4/yoda_jump_takeoff_v6.png')
     // V2 painted assets (Stage 2 — Gemini-generated, Egor-style)
     this.load.image('yoda_jump',   '/sprites/v4/yoda_jump_v4.png')
     this.load.image('yoda_hit',    '/sprites/v4/yoda_hit_v4.png')
@@ -597,9 +604,22 @@ export class SwampScene extends Phaser.Scene {
     if (anim === this.prevAnim) return
     this.prevAnim = anim
 
-    // Swap sprite texture
+    // Swap sprite texture. For 'jumping': prefer side-profile takeoff frame
+    // on first jump; switch to front-facing yoda_jump on double-jump (the
+    // celebratory mid-air pose). doubleJumpAvailable is FALSE after the
+    // double-jump has been used, TRUE while still available.
     if (this.playerImg) {
-      const tex = anim === 'jumping' && this.textures.exists('yoda_jump') ? 'yoda_jump'
+      const p = this.gs.player
+      let jumpTex = 'yoda_jump'
+      if (anim === 'jumping') {
+        // After first jump: doubleJumpAvailable=true. After double-jump: false.
+        // So: hasUsedDoubleJump = !doubleJumpAvailable && !grounded
+        const usedDoubleJump = !p.doubleJumpAvailable && !p.grounded
+        if (!usedDoubleJump && this.textures.exists('yoda_jump_takeoff')) {
+          jumpTex = 'yoda_jump_takeoff'
+        }
+      }
+      const tex = anim === 'jumping' && this.textures.exists(jumpTex) ? jumpTex
         : anim === 'hit'  && this.textures.exists('yoda_hit')    ? 'yoda_hit'
         : anim === 'dead' && this.textures.exists('yoda_defeat') ? 'yoda_defeat'
         : this.textures.exists('yoda_idle') ? 'yoda_idle' : null
@@ -1330,6 +1350,16 @@ export class SwampScene extends Phaser.Scene {
     const hasAnyWalkFrames = this.textures.exists('yoda_walk_1') || this.textures.exists('yoda_idle_b')
     const bobY = (p.anim === 'running' && hasAnyWalkFrames) ? 0
       : p.anim === 'running' ? -this.bobOffset : 0
+    // syncPlayerAnim only fires on anim CHANGE. For jumping, we need to
+    // re-check on every frame because doubleJumpAvailable transitions from
+    // true → false WITHIN the 'jumping' anim state (second tap mid-air).
+    if (this.playerImg && p.anim === 'jumping') {
+      const usedDoubleJump = !p.doubleJumpAvailable && !p.grounded
+      const wantTex = usedDoubleJump ? 'yoda_jump' : 'yoda_jump_takeoff'
+      if (this.textures.exists(wantTex) && this.playerImg.texture.key !== wantTex) {
+        this.playerImg.setTexture(wantTex)
+      }
+    }
     // Sprite alpha bbox has empty padding below the planted foot when other foot is lifted;
     // compensate so the planted foot visually touches ground. Also Egor sticker has padding
     // below the figure baseline that bbox includes.
@@ -1360,25 +1390,23 @@ export class SwampScene extends Phaser.Scene {
       let targetTex: string | null = null  // null = don't override syncPlayerAnim's choice
       let runBobY = 0  // vertical body bob for walk-cycle weight transfer
       const hasWalkCycle = this.textures.exists('yoda_walk_1') &&
-        this.textures.exists('yoda_walk_2') &&
-        this.textures.exists('yoda_walk_3') &&
-        this.textures.exists('yoda_walk_4')
+        this.textures.exists('yoda_walk_6')
       if (p.anim === 'running' && hasWalkCycle) {
-        // 4-frame walk cycle from fal.ai Wan2.2 I2V keyframes:
-        //   0: walk_1 = pass-R   (legs passing, right under body)
-        //   1: walk_2 = contact-R (right foot just planted forward)
-        //   2: walk_3 = pass-L   (legs passing, left under body)
-        //   3: walk_4 = contact-L (left foot just planted forward)
-        // One full cycle = 2 steps. Natural jog cadence ~1.9 Hz → each
-        // frame held ~131 ms.
-        const CYCLE_HZ = 1.9
-        const phase = (this.gs.gameTime * CYCLE_HZ) % 1  // 0..1 per cycle
-        const frameIdx = Math.floor(phase * 4) % 4
+        // 6-frame walk cycle from fal.ai Wan2.2 I2V keyframes (vision-validated).
+        // Cycle order: contact-R, pass-L, contact-L, pass-R, contact-L(alt), pass-R(alt)
+        // One full cycle = 6 frames covering ~2 full steps (3 footfalls).
+        // Hollow Knight uses 8-frame runs at ~12fps. We use 6 frames at ~10fps
+        // (cycle every 600ms = 1.67 Hz) for similar smoothness.
+        const CYCLE_HZ = 1.7
+        const FRAME_COUNT = 6
+        const phase = (this.gs.gameTime * CYCLE_HZ) % 1
+        const frameIdx = Math.floor(phase * FRAME_COUNT) % FRAME_COUNT
         targetTex = `yoda_walk_${frameIdx + 1}`
-        // Body bob: lowest on CONTACT (frames 1,3 = idx 1,3), highest on PASS (idx 0,2).
-        // Two contacts per cycle → sin(2*phase*2pi). Negative = up.
-        const bobPhase = phase * Math.PI * 2 * 2
-        runBobY = -Math.abs(Math.sin(bobPhase + Math.PI / 2)) * (PH * 0.045)
+        // Body bob: 2 footfalls per cycle. CONTACT frames (1,3) = body low.
+        // PASS frames (2,4) = body high. Sin wave at 2x cycle freq, phased
+        // so trough lands on contact frames.
+        const bobPhase = phase * Math.PI * 4
+        runBobY = -Math.abs(Math.sin(bobPhase + Math.PI / 2)) * (PH * 0.04)
       } else if (p.anim === 'running' && this.textures.exists('yoda_idle_b')) {
         // 2-frame fallback if walk cycle missing
         const STEP_HZ = 1.9
