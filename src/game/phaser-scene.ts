@@ -363,14 +363,16 @@ export class SwampScene extends Phaser.Scene {
 
       // GROUND overlay — measured from actual alpha map of bg_ground.png:
       // painted moss becomes substantial at row 64.5% of source. Anchor
-      // that line to the player walk line so player + log sit ON moss,
-      // not floating in the transparent zone above it.
+      // that line to the PLAYER'S FEET (groundY), not visualGroundY.
+      // visualGroundY = groundY + 0.4*PLAYER_HEIGHT was a v5 trick where
+      // the ground BAND started below feet; for v6 with a painted moss
+      // SURFACE the top edge must sit AT the feet or Yoda floats.
       const GROUND_PAINT_START = 0.645  // measured from PNG alpha
       const GROUND_PAINT_FRAC = 1 - GROUND_PAINT_START  // 0.355
-      const visualGroundY = this.gs.groundY + Math.round(PLAYER_HEIGHT * 0.4)
-      const paintedScreenH = h - visualGroundY
+      const groundSurfaceY = this.gs.groundY  // = player's feet
+      const paintedScreenH = h - groundSurfaceY
       const plateH = Math.round(paintedScreenH / GROUND_PAINT_FRAC)
-      const plateTop = visualGroundY - Math.round(plateH * GROUND_PAINT_START)
+      const plateTop = groundSurfaceY - Math.round(plateH * GROUND_PAINT_START)
       const groundSrc6 = this.textures.get('plate6_ground').getSourceImage() as HTMLImageElement
       this.plateGround = this.add.tileSprite(0, plateTop, w, plateH, 'plate6_ground')
         .setOrigin(0, 0)
@@ -378,13 +380,13 @@ export class SwampScene extends Phaser.Scene {
       this.plateGround.tileScaleY = plateH / groundSrc6.height
       this.plateGround.tileScaleX = plateH / groundSrc6.height
 
-      this.v5GroundLineY = visualGroundY
+      this.v5GroundLineY = groundSurfaceY
       console.log('[v6 placement]', {
         screen: { w, h },
         sky: { tileScaleY: this.plateSky.tileScaleY.toFixed(3) },
         canopy: { tileScaleY: this.plateCanopy.tileScaleY.toFixed(3) },
         mid: { tileScaleY: this.plateMid.tileScaleY.toFixed(3) },
-        ground: { y: plateTop, h: plateH, walkLineY: visualGroundY, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
+        ground: { y: plateTop, h: plateH, walkLineY: groundSurfaceY, tileScaleY: this.plateGround.tileScaleY.toFixed(3) },
       })
     } else if (this.hasV5Plates) {
       // CANOPY — fills entire screen, scrolls slowest (15%). Image has
