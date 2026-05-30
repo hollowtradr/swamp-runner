@@ -581,8 +581,8 @@ function renderResultData(result: sdk.SDKResponse<sdk.ResultData>): void {
 
   const data = result.data
 
-  if (rankEl && data.leaderboard_rank) {
-    rankEl.textContent = `Tentative rank: #${data.leaderboard_rank} this month`
+  if (rankEl) {
+    rankEl.textContent = formatPreviewRank(data)
   }
 
   if (!midiEl) return
@@ -647,8 +647,8 @@ function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
     midiEl.classList.add('animating')
     setTimeout(() => midiEl.classList.remove('animating'), 600)
   }
-  if (rankEl && data.leaderboard_rank) {
-    rankEl.textContent = `Rank: #${data.leaderboard_rank} this month`
+  if (rankEl) {
+    rankEl.textContent = formatSubmittedRank(data)
   }
   if (trophyEl && data.trophy_awarded) {
     trophyEl.innerHTML = `🏆 <strong>${data.trophy_awarded.name}</strong>`
@@ -656,4 +656,28 @@ function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
     trophyEl.classList.add('visible')
   }
   tgHaptic('success')
+}
+
+// ── Rank labels ──────────────────────────────────────────────────────────────
+
+function formatPreviewRank(data: sdk.ResultData): string {
+  const best = (data.current_best_score ?? 0) | 0
+  const thisRunRank = data.this_run_rank
+  // No banked run yet this month — preview the tentative rank.
+  if (!best || data.leaderboard_rank == null) {
+    return thisRunRank ? `If banked: #${thisRunRank} this month` : ''
+  }
+  if (data.would_improve_best && thisRunRank) {
+    return `New best! If banked: #${thisRunRank} (was #${data.leaderboard_rank}, ${best.toLocaleString()})`
+  }
+  // Practice run below current best — banking won't improve rank.
+  return `Best this month: #${data.leaderboard_rank} (${best.toLocaleString()}) — this run won't improve it`
+}
+
+function formatSubmittedRank(data: sdk.SubmitData): string {
+  if (data.leaderboard_rank == null) return ''
+  if (data.improved_best === false) {
+    return `Best this month still #${data.leaderboard_rank}`
+  }
+  return `Rank: #${data.leaderboard_rank} this month`
 }

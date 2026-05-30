@@ -149,7 +149,10 @@ export interface ResultData {
   projected_midi: number        // what /submit would mint
   submits_remaining: number     // bankable runs left today
   trophy_awarded: TrophyData | null  // always null from /result; set by /submit
-  leaderboard_rank: number | null
+  leaderboard_rank: number | null     // user's current monthly BEST rank (may reflect a prior banked run)
+  this_run_rank?: number              // rank THIS run's score would hold if banked, vs other users' bests
+  would_improve_best?: boolean        // true iff this run beats the user's current monthly best
+  current_best_score?: number         // user's current monthly best (0 if none banked)
   message: string
 }
 
@@ -158,7 +161,9 @@ export interface SubmitData {
   midi_awarded: number
   new_midi_balance: number
   trophy_awarded: TrophyData | null
-  leaderboard_rank: number | null
+  leaderboard_rank: number | null     // user's monthly BEST rank after this submit
+  this_run_rank?: number              // rank this specific banked score would hold among other users' bests
+  improved_best?: boolean             // true iff this submit raised the monthly best
   submits_remaining: number
   message: string
 }
