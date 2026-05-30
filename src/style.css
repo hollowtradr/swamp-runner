@@ -178,9 +178,10 @@ html, body {
 .title-tagline {
   font-family: 'IM Fell English', 'Georgia', serif;
   font-style: italic;
-  font-size: 14px;
-  color: var(--silver);
+  font-size: 15px;
+  color: var(--parchment);
   line-height: 1.5;
+  opacity: 0.95;
 }
 
 .title-player-card {
@@ -1001,14 +1002,25 @@ html, body {
 }
 
 .onboarding-modal {
+  position: relative;
   background: linear-gradient(160deg, rgba(240, 220, 160, 0.98), rgba(210, 185, 120, 0.98));
-  border: 2px solid var(--mud-dark);
-  border-radius: 10px;
+  border: 2px solid rgba(160, 120, 60, 0.70);
+  border-radius: 14px;
   padding: 24px;
   width: 100%;
-  max-width: 340px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  max-width: 360px;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.50);
   color: var(--parchment-text);
+}
+
+/* Inner border decoration — matches Result/Leaderboard/Settings */
+.onboarding-modal::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(160, 120, 60, 0.30);
+  border-radius: 9px;
+  pointer-events: none;
 }
 
 .onboarding-screen {
@@ -1139,13 +1151,18 @@ html, body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-/* Tagline + eyebrow — readable against swamp-mist bg */
+/* Tagline + eyebrow — readable against the swamp-mist daylight bg.
+   Tagline previously used --silver (#b8b8a8) which fails WCAG against
+   the warm green canvas. Strong drop-shadow + parchment color recovers
+   contrast without darkening the background. */
 .title-tagline {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow:
+    0 1px 3px rgba(13, 26, 16, 0.85),
+    0 0 12px rgba(13, 26, 16, 0.55);
 }
 
 .title-eyebrow {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(13, 26, 16, 0.75);
 }
 
 /* Controls hint text — improve daylight contrast */
@@ -1214,17 +1231,28 @@ html, body {
 
 /* ── Title perks card (tier chrome on title screen) ─────────── */
 .title-perks-card {
+  position: relative;
   width: 100%;
-  margin-top: 8px; /* breathing room below the Leaderboard button */
-  background: rgba(240, 220, 160, 0.92);
-  border: 2px solid rgba(144, 168, 120, 0.45);
-  border-radius: var(--radius);
+  margin-top: 12px;
+  background: linear-gradient(160deg, rgba(240, 220, 160, 0.96), rgba(210, 185, 120, 0.96));
+  border: 2px solid rgba(160, 120, 60, 0.55);
+  border-radius: 12px;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   flex-shrink: 0;
+}
+
+/* Inner border decoration — matches Result/Leaderboard/Settings/Onboarding */
+.title-perks-card::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(160, 120, 60, 0.28);
+  border-radius: 8px;
+  pointer-events: none;
 }
 
 /* Tier-colored borders — mirrors HUD badge modifiers */
