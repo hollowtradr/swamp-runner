@@ -411,9 +411,12 @@ export class SwampScene extends Phaser.Scene {
       // MID TREES overlay — trunks span ~80% of frame height. Pull DOWN
       // by trunkBuryY so roots/bases disappear behind earth fill + moss
       // foreground (HK/Ori: trees emerge FROM the ground, not stand ON it).
+      // Bump trunkBuryY (0.20 -> 0.34) so trunk TOPS sink below the
+      // canopy band — caps the visible vertical run and reads as
+      // "under the canopy" rather than "trunks poking through sky."
       const PH = PLAYER_HEIGHT * 1.4
       const visualFeetY = this.gs.groundY - Math.round(PH * 0.35)
-      const trunkBuryY = Math.round(PH * 0.20)
+      const trunkBuryY = Math.round(PH * 0.34)
       const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
       this.plateMid = this.add.tileSprite(0, trunkBuryY, w, h, 'plate6_mid')
         .setOrigin(0, 0)
@@ -430,6 +433,21 @@ export class SwampScene extends Phaser.Scene {
       this.plateEarth = this.add.rectangle(0, visualFeetY, w, h - visualFeetY, 0x161e17)
         .setOrigin(0, 0)
         .setDepth(0.95)
+
+      // TOP CANOPY VIGNETTE — dark band at the very top of the screen,
+      // depth 0.6 (in front of mid-trees at 0.5, behind everything else).
+      // Reads as "overhead canopy darkness" and visually caps any tall
+      // mid-tree trunks that still extend toward the top. Pure flat rect
+      // is cheap and reliable; can be upgraded to a painted overlay plate
+      // later without changing the depth contract.
+      const vignetteH = Math.round(h * 0.16)
+      this.add.rectangle(0, 0, w, vignetteH, 0x0a1208, 0.85)
+        .setOrigin(0, 0)
+        .setDepth(0.6)
+      // Soft fade band just below (alpha 0.45) blends vignette into canopy.
+      this.add.rectangle(0, vignetteH, w, Math.round(h * 0.05), 0x0a1208, 0.45)
+        .setOrigin(0, 0)
+        .setDepth(0.6)
 
       // GROUND/MOSS overlay — painted vegetation as FOREGROUND. Sits ABOVE
       // the player (depth 2.5) so it occludes ankles/shins → wading effect.
