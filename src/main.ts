@@ -145,11 +145,11 @@ function showTitleScreen(session: SessionData | null): void {
       <button id="play-btn" class="btn swamp-play-btn">
         ▶ Begin Training
       </button>
-      <button id="daily-btn" class="btn btn-ghost swamp-ghost-btn" style="background:rgba(0,200,255,0.08);border-color:rgba(0,200,255,0.4);margin-top:6px;">
-        📅 Daily Challenge
-      </button>
       <button id="lb-btn" class="btn btn-ghost swamp-ghost-btn">
         🏆 Leaderboard
+      </button>
+      <button id="settings-btn" class="btn btn-ghost swamp-ghost-btn">
+        ⚙️ Settings
       </button>
     </div>
   `
@@ -172,16 +172,12 @@ function showTitleScreen(session: SessionData | null): void {
     }, 300)
   })
 
-  document.getElementById('daily-btn')?.addEventListener('click', () => {
-    titleEl.classList.add('fade-out')
-    setTimeout(() => {
-      titleEl.remove()
-      beginGame(session, { mode: 'daily' })
-    }, 300)
-  })
-
   document.getElementById('lb-btn')?.addEventListener('click', () => {
     import('./ui/Leaderboard.js').then(({ showLeaderboard }) => showLeaderboard())
+  })
+
+  document.getElementById('settings-btn')?.addEventListener('click', () => {
+    import('./ui/SettingsModal.js').then(({ showSettingsModal }) => showSettingsModal())
   })
 }
 

@@ -411,12 +411,11 @@ export class SwampScene extends Phaser.Scene {
       // MID TREES overlay — trunks span ~80% of frame height. Pull DOWN
       // by trunkBuryY so roots/bases disappear behind earth fill + moss
       // foreground (HK/Ori: trees emerge FROM the ground, not stand ON it).
-      // Bump trunkBuryY (0.34 -> 0.55) so trunk TOPS fully sink behind the
-      // canopy band — caps the visible vertical run and reads as
-      // "under the canopy" rather than "trunks poking through sky."
+      // 0.40 strikes the balance: roots/bases buried behind earth+moss,
+      // trunk tops sit comfortably below the soft top shade.
       const PH = PLAYER_HEIGHT * 1.4
       const visualFeetY = this.gs.groundY - Math.round(PH * 0.35)
-      const trunkBuryY = Math.round(PH * 0.55)
+      const trunkBuryY = Math.round(PH * 0.40)
       const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
       this.plateMid = this.add.tileSprite(0, trunkBuryY, w, h, 'plate6_mid')
         .setOrigin(0, 0)
@@ -434,27 +433,25 @@ export class SwampScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setDepth(0.95)
 
-      // TOP CANOPY VIGNETTE — dark band at the very top of the screen,
-      // sits in FRONT of the canopy plate (depth 0.0) AND the mid-trees
-      // plate (depth 0.5) so it can occlude both the painted orange
-      // branches and any trunk tops that bleed through. Reads as
-      // "overhead canopy darkness."
-      // 4-stop gradient: hard solid → dense → mid → soft fade.
-      const vignetteH = Math.round(h * 0.18)   // solid black-green band
-      const fade1H    = Math.round(h * 0.10)   // dense fade
-      const fade2H    = Math.round(h * 0.10)   // soft fade
-      // Depth 1.4: in front of canopy plate (0.0), mid-trees (0.5),
-      // earth (0.95); behind obstacles (1.5-2.2), moss (3.7), player (4.0).
+      // TOP CANOPY SHADE — soft overhead darkness, NOT a curtain.
+      // Sits in front of background plates (canopy 0.0, mid 0.5) but behind
+      // gameplay sprites. Implemented as many thin horizontal strips with
+      // alpha decreasing along an ease curve so there is no visible seam
+      // and no flat "band rectangle" lower edge.
       const VIGNETTE_DEPTH = 1.4
-      this.add.rectangle(0, 0, w, vignetteH, 0x050a06, 0.98)
-        .setOrigin(0, 0)
-        .setDepth(VIGNETTE_DEPTH)
-      this.add.rectangle(0, vignetteH, w, fade1H, 0x050a06, 0.78)
-        .setOrigin(0, 0)
-        .setDepth(VIGNETTE_DEPTH)
-      this.add.rectangle(0, vignetteH + fade1H, w, fade2H, 0x050a06, 0.45)
-        .setOrigin(0, 0)
-        .setDepth(VIGNETTE_DEPTH)
+      const shadeH = Math.round(h * 0.18)   // total reach (~18% of viewport)
+      const peakAlpha = 0.78                 // darkest at very top
+      const strips = 36
+      const stripH = Math.max(1, Math.ceil(shadeH / strips))
+      for (let i = 0; i < strips; i++) {
+        // ease-out cubic: starts strong, fades smoothly to 0
+        const t = i / (strips - 1)
+        const a = peakAlpha * Math.pow(1 - t, 2.2)
+        if (a <= 0.01) break
+        this.add.rectangle(0, i * stripH, w, stripH + 1, 0x060d08, a)
+          .setOrigin(0, 0)
+          .setDepth(VIGNETTE_DEPTH)
+      }
 
       // GROUND/MOSS overlay — painted vegetation as FOREGROUND. Sits ABOVE
       // the player (depth 2.5) so it occludes ankles/shins → wading effect.
