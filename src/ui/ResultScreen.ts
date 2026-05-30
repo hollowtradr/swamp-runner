@@ -626,27 +626,10 @@ function renderResultData(result: sdk.SDKResponse<sdk.ResultData>): void {
   tgHaptic('selection')
   void trophyEl  // trophy fires on submit, not here
 
-  // YODA-375: inject Share button for personal bests or top-3 runs
-  const shareArea = document.getElementById('result-share-area')
-  if (shareArea && (data.would_improve_best || (data.this_run_rank != null && data.this_run_rank <= 3))) {
-    shareArea.innerHTML = `
-      <button class="btn btn-ghost swamp-btn-ghost result-share-btn" id="result-share-story">
-        &#128228; Share Score
-      </button>
-    `
-    document.getElementById('result-share-story')?.addEventListener('click', () => {
-      void sdk.shareToStory({
-        template: 'high_score',
-        templateData: {
-          score: _lastScore,
-          rank:  data.this_run_rank ?? undefined,
-          player_name: 'Champion',
-          game_name:   'Swamp Runner',
-        },
-        deeplink: 'https://t.me/stickergalaxybot/play?startapp=swamp_runner',
-      })
-    })
-  }
+  // Share Score intentionally NOT rendered here. A pre-submit (or practice)
+  // score is not certifiable — friends opening a shared rank #3 story card
+  // would have no way to verify the run was banked. Share is gated on submit.
+  // See renderSubmittedState() below for the actual injection.
 }
 
 function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
@@ -686,6 +669,36 @@ function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
     trophyEl.classList.remove('hidden')
     trophyEl.classList.add('visible')
   }
+
+  // YODA-375 (corrected): inject Share button ONLY after a successful submit,
+  // and only for runs worth bragging about — new monthly best or top-3 rank.
+  // Pre-submit / practice runs do not qualify because the score isn't banked
+  // on the leaderboard and the share card's rank would be unverifiable.
+  const shareArea = document.getElementById('result-share-area')
+  const isBragWorthy =
+    data.improved_best === true ||
+    (data.this_run_rank != null && data.this_run_rank <= 3) ||
+    (data.leaderboard_rank != null && data.leaderboard_rank <= 3)
+  if (shareArea && isBragWorthy) {
+    shareArea.innerHTML = `
+      <button class="btn btn-ghost swamp-btn-ghost result-share-btn" id="result-share-story">
+        &#128228; Share Score
+      </button>
+    `
+    document.getElementById('result-share-story')?.addEventListener('click', () => {
+      void sdk.shareToStory({
+        template: 'high_score',
+        templateData: {
+          score: _lastScore,
+          rank:  data.this_run_rank ?? data.leaderboard_rank ?? undefined,
+          player_name: 'Champion',
+          game_name:   'Swamp Runner',
+        },
+        deeplink: 'https://t.me/stickergalaxybot/play?startapp=swamp_runner',
+      })
+    })
+  }
+
   tgHaptic('success')
 }
 
