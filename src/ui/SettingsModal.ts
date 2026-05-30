@@ -28,14 +28,14 @@ export function showSettingsModal(): void {
   const inShell = typeof window !== 'undefined' && window.parent !== window
 
   _overlay = document.createElement('div')
-  _overlay.className = 'settings-overlay'
+  _overlay.className = 'settings-overlay whisper-in'
   _overlay.innerHTML = `
     <div class="settings-scroll">
       <div class="settings-parchment">
         <div class="settings-header">
           <div class="settings-title-block">
             <div class="settings-eyebrow">Sticker Galaxy Arcade</div>
-            <h2 class="settings-title">Settings</h2>
+            <h2 class="settings-title"><span class="with-sigils">Settings</span></h2>
           </div>
           <button id="settings-close" class="settings-close-btn" aria-label="Close settings">✕</button>
         </div>

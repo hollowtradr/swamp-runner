@@ -46,7 +46,7 @@ export function maybeShowOnboarding(): void {
 function buildOverlay(): HTMLElement {
   const overlay = document.createElement('div')
   overlay.id = 'onboarding-overlay'
-  overlay.className = 'onboarding-overlay'
+  overlay.className = 'onboarding-overlay whisper-in'
   overlay.setAttribute('role', 'dialog')
   overlay.setAttribute('aria-modal', 'true')
   overlay.setAttribute('aria-label', 'Welcome to Swamp Runner')
@@ -56,7 +56,7 @@ function buildOverlay(): HTMLElement {
 
       <!-- Screen 1: How midi works -->
       <div class="onboarding-screen" id="onboard-screen-1">
-        <div class="onboarding-title">⚡ How Midi Works</div>
+        <div class="onboarding-title"><span class="with-sigils">⚡ How Midi Works</span></div>
         <ul class="onboarding-bullets">
           <li>🌿 <strong>Earn midi from every run</strong> — farther you go, more you earn.</li>
           <li>✨ <strong>Spend midi on extras</strong> — revives, cosmetics, and more.</li>
@@ -72,7 +72,7 @@ function buildOverlay(): HTMLElement {
 
       <!-- Screen 2: $YODA holder perks -->
       <div class="onboarding-screen hidden" id="onboard-screen-2">
-        <div class="onboarding-title">💎 $YODA Holder Perks</div>
+        <div class="onboarding-title"><span class="with-sigils">💎 $YODA Holder Perks</span></div>
         <p class="onboarding-sub">Hold $YODA to unlock more plays and free revives every day.</p>
         <table class="onboarding-tier-table">
           <thead>

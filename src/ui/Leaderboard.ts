@@ -19,14 +19,14 @@ export async function showLeaderboard(): Promise<void> {
   _overlay?.remove()
 
   _overlay = document.createElement('div')
-  _overlay.className = 'leaderboard-overlay'
+  _overlay.className = 'leaderboard-overlay whisper-in'
   _overlay.innerHTML = `
     <div class="lb-scroll">
       <div class="lb-parchment">
         <div class="lb-header">
           <div class="lb-title-block">
             <div class="lb-eyebrow">Sticker Galaxy Arcade</div>
-            <h2 class="lb-title">Monthly Leaderboard</h2>
+            <h2 class="lb-title"><span class="with-sigils">Monthly Leaderboard</span></h2>
           </div>
           <button id="lb-close" class="lb-close-btn" aria-label="Close leaderboard">✕</button>
         </div>

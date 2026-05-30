@@ -116,6 +116,15 @@ function showTitleScreen(session: SessionData | null): void {
       <div class="title-mist title-mist-2"></div>
     </div>
 
+    <div class="fireflies" aria-hidden="true">
+      <div class="firefly"></div>
+      <div class="firefly"></div>
+      <div class="firefly"></div>
+      <div class="firefly"></div>
+      <div class="firefly"></div>
+      <div class="firefly"></div>
+    </div>
+
     ${metaStripHtml}
 
     <div class="title-content">
@@ -128,7 +137,7 @@ function showTitleScreen(session: SessionData | null): void {
 
       <div class="title-text-block">
         <div class="title-eyebrow">Sticker Galaxy Arcade</div>
-        <h1 class="title-name">Swamp Runner</h1>
+        <h1 class="title-name"><span class="with-sigils">Swamp Runner</span></h1>
         <p class="title-tagline">
           Hop across Dagobah. Gather Force essence.<br>
           Train under Master Yoda's watch.

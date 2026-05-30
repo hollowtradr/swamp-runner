@@ -121,6 +121,10 @@ export function showResultScreen(
 ): void {
   if (!_el) return
   _el.classList.remove('hidden')
+  _el.classList.remove('whisper-in')
+  // force reflow so animation re-triggers on subsequent shows
+  void _el.offsetWidth
+  _el.classList.add('whisper-in')
 
   // Show revive offer ONLY if the player has a free revive available this
   // run (tier-granted, 0/0/1/2/3 per day). Paid revives are intentionally
@@ -284,7 +288,7 @@ function renderFinalResult(
         ${spriteEl}
 
         <div class="result-parchment">
-          <div class="result-title-text">${isWin ? 'Run Complete' : 'The Force Fades'}</div>
+          <div class="result-title-text"><span class="with-sigils">${isWin ? 'Run Complete' : 'The Force Fades'}</span></div>
 
           <div class="result-quote">"${quote}"</div>
 

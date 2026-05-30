@@ -35,9 +35,14 @@
    * (#f0dca0) — yellow-on-cream is unreadable. Use --gold-ink for any text
    * sitting on a parchment, parchment-dk, or other warm-light surface. */
   --gold-ink:    #6b4a08;
-  --silver:      #90a878;
-  --text:        #e8f0e0;
-  --text-muted:  #90a878;
+  /* Subtitle / muted text on the swamp-green canvas.
+   * Previously #90a878 (olive) which matched the bg luminance —
+   * failed WCAG, illegible against the daylight mist. The new token
+   * is parchment-tinted so it still feels "muted" without dying
+   * into the background. */
+  --silver:      #d4c89a;
+  --text:        #f5ecd6;
+  --text-muted:  #d4c89a;
   --success:     #5ac860;
   --danger:      #d04040;
   --radius:      10px;
@@ -1899,3 +1904,198 @@ html, body {
   justify-content: center;
 }
 .settings-done-btn { min-width: 140px; }
+
+/* =========================================================
+   Hollow Knight / Team Cherry effects pack
+   Ambient particles · radial bloom · slow breath · sigils · whisper-in
+   Each effect is opt-in via a class; all respect prefers-reduced-motion.
+   ========================================================= */
+
+/* ── Fireflies (ambient drifting motes) ────────────────────
+   Reuses the same DOM/CSS hook as .title-mist. Six staggered
+   particles, varying size + speed + horizontal drift.  Sit
+   behind .title-content (z-index 1 < 2). */
+
+.fireflies {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+.firefly {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #fff5b8;
+  box-shadow:
+    0 0 6px 2px rgba(255, 230, 120, 0.85),
+    0 0 14px 4px rgba(255, 200, 80, 0.45);
+  opacity: 0;
+  animation:
+    firefly-drift 14s linear infinite,
+    firefly-glow  2.6s ease-in-out infinite;
+}
+/* Six lanes — varied size, delay, drift, duration so it never
+   looks like a march. Even-indexed ones drift slightly right; odd
+   ones drift slightly left. */
+.firefly:nth-child(1) { left:  8%; animation-duration: 14s, 2.6s; animation-delay:  0s,  0.0s; }
+.firefly:nth-child(2) { left: 24%; animation-duration: 17s, 3.1s; animation-delay: -3s, -0.7s; transform: scale(0.7); }
+.firefly:nth-child(3) { left: 41%; animation-duration: 12s, 2.2s; animation-delay: -7s, -1.4s; }
+.firefly:nth-child(4) { left: 58%; animation-duration: 19s, 3.6s; animation-delay: -2s, -2.0s; transform: scale(1.25); }
+.firefly:nth-child(5) { left: 73%; animation-duration: 15s, 2.9s; animation-delay: -9s, -0.3s; transform: scale(0.85); }
+.firefly:nth-child(6) { left: 89%; animation-duration: 18s, 3.3s; animation-delay: -5s, -1.8s; }
+
+@keyframes firefly-drift {
+  0%   { bottom: -6%;  transform: translateX(0)       scale(var(--ff-s, 1)); }
+  50%  {                transform: translateX(18px)   scale(var(--ff-s, 1)); }
+  100% { bottom: 106%; transform: translateX(-12px)   scale(var(--ff-s, 1)); }
+}
+@keyframes firefly-glow {
+  0%, 100% { opacity: 0.15; filter: blur(0.5px); }
+  50%      { opacity: 0.95; filter: blur(0px);   }
+}
+
+/* ── Radial bloom behind primary CTAs and hero titles ────── */
+
+.swamp-play-btn,
+.swamp-btn {
+  position: relative;
+  isolation: isolate;
+}
+.swamp-play-btn::before,
+.swamp-btn::before {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  background: radial-gradient(circle at 50% 60%,
+    rgba(170, 234, 96, 0.45) 0%,
+    rgba(170, 234, 96, 0.18) 35%,
+    rgba(170, 234, 96, 0) 70%);
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.7;
+  animation: bloom-breath 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes bloom-breath {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50%      { opacity: 0.85; transform: scale(1.04); }
+}
+
+/* Hero title: same radial bloom, gold-toned, sits behind the
+   Cinzel name on the title screen */
+.title-name {
+  position: relative;
+  isolation: isolate;
+}
+.title-name::before {
+  content: '';
+  position: absolute;
+  inset: -28px -14%;
+  background: radial-gradient(ellipse at 50% 50%,
+    rgba(255, 230, 140, 0.30) 0%,
+    rgba(212, 168, 32, 0.12)  40%,
+    rgba(212, 168, 32, 0)     75%);
+  z-index: -1;
+  pointer-events: none;
+  animation: bloom-breath 6.5s ease-in-out infinite;
+}
+
+/* ── Slow breath on hero sprite & static cards ──────────── */
+
+.title-hero-img {
+  animation: hero-breath 5.5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+@keyframes hero-breath {
+  0%, 100% { transform: translateY(0)    scale(1);    filter: drop-shadow(0 6px 14px rgba(0,0,0,0.30)); }
+  50%      { transform: translateY(-4px) scale(1.02); filter: drop-shadow(0 10px 22px rgba(170,234,96,0.35)); }
+}
+
+/* ── Sigil flourishes flanking titles ────────────────────── */
+/* Small ✦ glyphs on either side of any .with-sigils heading. */
+
+.with-sigils {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
+}
+.with-sigils::before,
+.with-sigils::after {
+  content: '✦';
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 0.55em;
+  color: var(--gold);
+  opacity: 0.70;
+  text-shadow: 0 0 8px rgba(212, 168, 32, 0.55);
+  animation: sigil-pulse 3.8s ease-in-out infinite;
+}
+.with-sigils::after  { animation-delay: -1.9s; }
+@keyframes sigil-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.92); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
+}
+
+/* Parchment-surface variant: sigils render in gold-ink for the
+   cream background instead of bright gold. */
+.lb-parchment .with-sigils::before,
+.lb-parchment .with-sigils::after,
+.settings-parchment .with-sigils::before,
+.settings-parchment .with-sigils::after,
+.result-parchment .with-sigils::before,
+.result-parchment .with-sigils::after {
+  color: var(--gold-ink);
+  text-shadow: 0 0 6px rgba(160, 120, 60, 0.45);
+}
+
+/* ── Whisper-in animation for overlays appearing ─────────── */
+
+.whisper-in {
+  animation: whisper-in 0.55s ease-out both;
+}
+@keyframes whisper-in {
+  0%   { opacity: 0; filter: blur(8px); transform: translateY(8px); }
+  60%  { opacity: 1; filter: blur(2px); }
+  100% { opacity: 1; filter: blur(0);   transform: translateY(0);  }
+}
+
+/* ── Embered close button (Hollow Knight UI accent) ──────── */
+/* Adds a slow glow ring to the standard close buttons. */
+.lb-close-btn,
+.settings-close-btn {
+  position: relative;
+}
+.lb-close-btn::after,
+.settings-close-btn::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgba(212, 168, 32, 0.0);
+  pointer-events: none;
+  animation: ember-ring 3.4s ease-in-out infinite;
+}
+@keyframes ember-ring {
+  0%, 100% { border-color: rgba(212, 168, 32, 0.0); transform: scale(1); }
+  50%      { border-color: rgba(212, 168, 32, 0.45); transform: scale(1.12); }
+}
+
+/* ── Accessibility: respect prefers-reduced-motion ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .firefly,
+  .swamp-play-btn::before,
+  .swamp-btn::before,
+  .title-name::before,
+  .title-hero-img,
+  .with-sigils::before,
+  .with-sigils::after,
+  .whisper-in,
+  .lb-close-btn::after,
+  .settings-close-btn::after {
+    animation: none !important;
+  }
+  .firefly { opacity: 0.35; }
+}
