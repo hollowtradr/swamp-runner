@@ -116,6 +116,11 @@ function showTitleScreen(session: SessionData | null): void {
       <div class="title-mist title-mist-2"></div>
     </div>
 
+    <div class="god-rays" aria-hidden="true">
+      <div class="god-ray god-ray-1"></div>
+      <div class="god-ray god-ray-2"></div>
+    </div>
+
     <div class="fireflies" aria-hidden="true">
       <div class="firefly"></div>
       <div class="firefly"></div>
@@ -138,7 +143,7 @@ function showTitleScreen(session: SessionData | null): void {
       <div class="title-text-block">
         <div class="title-eyebrow">Sticker Galaxy Arcade</div>
         <h1 class="title-name"><span class="with-sigils">Swamp Runner</span></h1>
-        <p class="title-tagline">
+        <p class="title-tagline" id="title-tagline">
           Hop across Dagobah. Gather Force essence.<br>
           Train under Master Yoda's watch.
         </p>
@@ -178,6 +183,10 @@ function showTitleScreen(session: SessionData | null): void {
   if (titleContent) {
     mountTitlePerksCard(titleContent)
   }
+
+  // ---- Hollow Knight pass 2: tagline whisper + tap-burst ----
+  animateTaglineWords(titleEl)
+  attachTapBursts(titleEl)
 
   document.getElementById('play-btn')?.addEventListener('click', () => {
     titleEl.classList.add('fade-out')
@@ -280,6 +289,67 @@ function hideLoading(): void {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ── Hollow Knight title effects ──────────────────────────────────────────────
+
+/**
+ * Wrap each word in .title-tagline in a <span class="word"> with a staggered
+ * animation-delay so the line whispers in word-by-word after the hero lands.
+ * Preserves <br> elements; skips if user prefers reduced motion.
+ */
+function animateTaglineWords(titleEl: HTMLElement): void {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  const tagline = titleEl.querySelector<HTMLElement>('#title-tagline')
+  if (!tagline) return
+
+  // Replace each text node with word-wrapped spans; keep <br> intact.
+  const children: ChildNode[] = Array.from(tagline.childNodes)
+  tagline.textContent = ''
+  let wordIndex = 0
+  const wordsBeforeFirstLine: number[] = []
+  for (const node of children) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const words = (node.textContent ?? '').trim().split(/\s+/).filter(Boolean)
+      words.forEach((w) => {
+        const span = document.createElement('span')
+        span.className = 'word'
+        span.textContent = w
+        // 90ms per word, starting 0.4s after the title appears
+        span.style.animationDelay = `${0.4 + wordIndex * 0.09}s`
+        tagline.appendChild(span)
+        tagline.appendChild(document.createTextNode(' '))
+        wordsBeforeFirstLine.push(wordIndex)
+        wordIndex += 1
+      })
+    } else {
+      tagline.appendChild(node.cloneNode(true))
+    }
+  }
+}
+
+/**
+ * Spawn a brief golden sparkle wherever the user taps on the title screen.
+ * Adds tactile feedback without coupling to any specific button. Bursts auto-
+ * remove after the CSS animation completes.
+ */
+function attachTapBursts(titleEl: HTMLElement): void {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  const spawn = (clientX: number, clientY: number): void => {
+    const rect = titleEl.getBoundingClientRect()
+    const burst = document.createElement('div')
+    burst.className = 'tap-burst'
+    burst.style.left = `${clientX - rect.left}px`
+    burst.style.top  = `${clientY - rect.top}px`
+    titleEl.appendChild(burst)
+    setTimeout(() => burst.remove(), 900)
+  }
+  titleEl.addEventListener('pointerdown', (e) => {
+    // Ignore taps on actual interactive controls so we don't double-fire.
+    const target = e.target as HTMLElement | null
+    if (target?.closest('button, a, input, label, .settings-toggle')) return
+    spawn(e.clientX, e.clientY)
+  })
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

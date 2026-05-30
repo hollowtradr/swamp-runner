@@ -2099,3 +2099,119 @@ html, body {
   }
   .firefly { opacity: 0.35; }
 }
+
+/* =========================================================
+   Title screen — depth, light, motion (Hollow Knight pass 2)
+   ========================================================= */
+
+/* ── Volumetric god-rays through the canopy ────────────────
+   Two angled radial gradient bands, slowly drifting + breathing.
+   Sit between background and content (z-index 1, same lane as
+   mist + fireflies — they composite together). */
+
+.god-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+.god-ray {
+  position: absolute;
+  top: -30%;
+  width: 180%;
+  height: 160%;
+  background: linear-gradient(105deg,
+    transparent 35%,
+    rgba(255, 240, 170, 0.0) 42%,
+    rgba(255, 240, 170, 0.18) 50%,
+    rgba(255, 240, 170, 0.0) 58%,
+    transparent 65%);
+  filter: blur(8px);
+  transform-origin: top center;
+  animation: god-ray-drift 26s ease-in-out infinite alternate;
+}
+.god-ray-1 { left: -60%; animation-duration: 26s; }
+.god-ray-2 {
+  left: -20%;
+  animation-duration: 34s;
+  animation-delay: -8s;
+  opacity: 0.7;
+  background: linear-gradient(115deg,
+    transparent 40%,
+    rgba(255, 220, 140, 0.0) 46%,
+    rgba(255, 220, 140, 0.13) 52%,
+    rgba(255, 220, 140, 0.0) 58%,
+    transparent 64%);
+}
+@keyframes god-ray-drift {
+  0%   { transform: translateX(-4%) rotate(-1deg); opacity: 0.40; }
+  50%  { transform: translateX(0)    rotate(0deg);  opacity: 0.70; }
+  100% { transform: translateX(4%)  rotate(1deg);  opacity: 0.45; }
+}
+
+/* ── Mist parallax drift ──────────────────────────────────
+   Both mist layers slowly slide laterally on different periods so
+   the daylight haze feels like wind, not static fog. */
+.title-mist-1 { animation: mist-drift-a 22s ease-in-out infinite alternate; }
+.title-mist-2 { animation: mist-drift-b 28s ease-in-out infinite alternate; }
+@keyframes mist-drift-a {
+  0%   { transform: translateX(-3%); opacity: 1; }
+  100% { transform: translateX(3%);  opacity: 0.75; }
+}
+@keyframes mist-drift-b {
+  0%   { transform: translateX(2%);  opacity: 0.55; }
+  100% { transform: translateX(-2%); opacity: 0.85; }
+}
+
+/* ── Tap-burst (touch-reactive sparkle) ──────────────────── */
+.tap-burst {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #fff5b8;
+  box-shadow:
+    0 0 10px 3px rgba(255, 230, 120, 0.85),
+    0 0 24px 8px rgba(255, 200, 80, 0.40);
+  transform: translate(-50%, -50%) scale(0.4);
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: 5;
+  animation: tap-burst 0.85s ease-out forwards;
+}
+@keyframes tap-burst {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.95; }
+  60%  { transform: translate(-50%, -50%) scale(1.6); opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0;    }
+}
+
+/* ── Tagline word-by-word whisper-in ──────────────────────
+   Each .word span fades + un-blurs on a per-word delay set inline. */
+.title-tagline .word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(4px);
+  animation: word-whisper 0.6s ease-out forwards;
+}
+@keyframes word-whisper {
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+/* ── Reduced motion: god-rays static, drift off, tagline visible ── */
+@media (prefers-reduced-motion: reduce) {
+  .god-ray,
+  .title-mist-1,
+  .title-mist-2,
+  .tap-burst {
+    animation: none !important;
+  }
+  .title-tagline .word {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
