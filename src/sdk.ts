@@ -179,12 +179,14 @@ export interface TonPaymentBlock {
 }
 
 export interface YodaPaymentBlock {
+  /** 'burn' — TEP-74 native burn op (0x595f07bc). Tokens destroyed on-chain. */
+  kind: 'burn'
   jetton_master: string
-  to_owner: string
   amount_nano: string
   comment: string
   valid_until: number
-  forward_ton_amount: string
+  /** TON attached for gas (0.05 TON = '50000000' nanoton); excess refunded. */
+  attached_ton: string
 }
 
 export interface PurchaseData {

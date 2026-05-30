@@ -1,5 +1,14 @@
 # $YODA Extra-Play Spec
 
+## Changelog
+
+| Date | Change |
+|---|---|
+| 2026-05-29 | **REFACTORED** to TEP-74 native burn. See [`YODA_NATIVE_BURN_REFACTOR.md`](./YODA_NATIVE_BURN_REFACTOR.md). The custodial burn-treasury wallet (`ARCADE_YODA_BURN_TREASURY`) was removed. The `yoda_payment` block now carries `kind: 'burn'` and `attached_ton` instead of `to_owner` and `forward_ton_amount`. Confirmation worker now polls jetton master events for `JettonBurn` actions. |
+| 2026-05-29 | Initial implementation (custodial burn-treasury path — superseded above). |
+
+---
+
 **Decision (Grant 2026-05-29):** Wire $YODA jetton as a second payment option
 for extra plays alongside TON. Tiny price, transferred to a burn-treasury,
 narrative = "tribute to Yoda, burned forever." Promotes the token on the
