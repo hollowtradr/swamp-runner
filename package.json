@@ -15,7 +15,6 @@
     "vite": "^5.2.11"
   },
   "dependencies": {
-    "phaser": "^3.90.0",
-    "sticker-galaxy-sdk-core": "file:../sticker-galaxy-sdk-core"
+    "phaser": "^3.90.0"
   }
 }

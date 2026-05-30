@@ -435,20 +435,26 @@ export class SwampScene extends Phaser.Scene {
         .setDepth(0.95)
 
       // TOP CANOPY VIGNETTE — dark band at the very top of the screen,
-      // depth 0.6 (in front of mid-trees at 0.5, behind everything else).
-      // Reads as "overhead canopy darkness" and visually caps any tall
-      // mid-tree trunks that still extend toward the top. Pure flat rect
-      // is cheap and reliable; can be upgraded to a painted overlay plate
-      // later without changing the depth contract.
-      // Bumped 0.16 -> 0.30 + fade 0.05 -> 0.08 to fully occlude trunk tops.
-      const vignetteH = Math.round(h * 0.30)
-      this.add.rectangle(0, 0, w, vignetteH, 0x0a1208, 0.92)
+      // sits in FRONT of the canopy plate (depth 0.0) AND the mid-trees
+      // plate (depth 0.5) so it can occlude both the painted orange
+      // branches and any trunk tops that bleed through. Reads as
+      // "overhead canopy darkness."
+      // 4-stop gradient: hard solid → dense → mid → soft fade.
+      const vignetteH = Math.round(h * 0.18)   // solid black-green band
+      const fade1H    = Math.round(h * 0.10)   // dense fade
+      const fade2H    = Math.round(h * 0.10)   // soft fade
+      // Depth 1.4: in front of canopy plate (0.0), mid-trees (0.5),
+      // earth (0.95); behind obstacles (1.5-2.2), moss (3.7), player (4.0).
+      const VIGNETTE_DEPTH = 1.4
+      this.add.rectangle(0, 0, w, vignetteH, 0x050a06, 0.98)
         .setOrigin(0, 0)
-        .setDepth(0.6)
-      // Soft fade band just below (alpha 0.55) blends vignette into canopy.
-      this.add.rectangle(0, vignetteH, w, Math.round(h * 0.08), 0x0a1208, 0.55)
+        .setDepth(VIGNETTE_DEPTH)
+      this.add.rectangle(0, vignetteH, w, fade1H, 0x050a06, 0.78)
         .setOrigin(0, 0)
-        .setDepth(0.6)
+        .setDepth(VIGNETTE_DEPTH)
+      this.add.rectangle(0, vignetteH + fade1H, w, fade2H, 0x050a06, 0.45)
+        .setOrigin(0, 0)
+        .setDepth(VIGNETTE_DEPTH)
 
       // GROUND/MOSS overlay — painted vegetation as FOREGROUND. Sits ABOVE
       // the player (depth 2.5) so it occludes ankles/shins → wading effect.

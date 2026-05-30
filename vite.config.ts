@@ -1,6 +1,14 @@
 import { defineConfig } from 'vite'
+import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      'sticker-galaxy-sdk-core': fileURLToPath(
+        new URL('./src/vendor/sticker-galaxy-sdk-core/index.ts', import.meta.url),
+      ),
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
