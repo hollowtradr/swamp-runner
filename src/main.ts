@@ -20,7 +20,7 @@ import { tgReady, tgBackButton } from './tg.js'
 import { startGame, stopGame, type GameStartOptions } from './game/index.js'
 import { initHUD, showHUD, hideHUD, updateHUD } from './ui/HUD.js'
 import { mountTitlePerksCard } from './ui/TitlePerksCard.js'
-import { mountSettingsLink } from './ui/SettingsLink.js'
+
 import {
   initResultScreen,
   setEntryContext,
@@ -161,7 +161,6 @@ function showTitleScreen(session: SessionData | null): void {
   const titleContent = titleEl.querySelector<HTMLElement>('.title-content')
   if (titleContent) {
     mountTitlePerksCard(titleContent)
-    mountSettingsLink(titleContent)
   }
 
   document.getElementById('play-btn')?.addEventListener('click', () => {

@@ -270,11 +270,12 @@ export function createInitialState(
     chunkPicker: chunks.length > 0
       ? new ChunkPicker(chunks, new SeededRNG(seed))
       : null,
-    // Queue starts just off the right edge of the viewport.
-    // canvasW is passed in but not available here — phaser-scene will
-    // prime the queue via the first maybeSpawn() call in physics, which
-    // receives canvasW. We start at 0 so the first tick immediately fills.
-    chunkQueueScreenX: 0,
+    // Queue starts at the right edge of the viewport so the first chunk
+    // spawns OFF-SCREEN and scrolls in. Previously this was 0, which
+    // placed the very first chunk's first entity at screen-X 0 — i.e.
+    // landing on or behind the player at canvasW*0.18 and killing the
+    // run on tick 1 ("instant-death rock" report).
+    chunkQueueScreenX: canvasW,
     lastChunkExit: { lanes: ['ground'] },
   }
 }
