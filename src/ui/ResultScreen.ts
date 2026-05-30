@@ -319,9 +319,6 @@ function renderFinalResult(
           <button class="btn btn-ghost swamp-btn-ghost" id="result-lb" style="margin-top:4px;">
             🏆 Leaderboard
           </button>
-          <button class="btn btn-ghost swamp-btn-ghost" id="result-ghost-toggle" style="margin-top:4px;font-size:12px;opacity:0.75;">
-            👻 Show ghost run: ON
-          </button>
         </div>
       </div>
     </div>
@@ -342,18 +339,7 @@ function renderFinalResult(
     import('./Leaderboard.js').then(({ showLeaderboard }) => showLeaderboard())
   })
 
-  // Ghost toggle — persists in localStorage
-  const GHOST_PREF_KEY = 'swamp_runner:show_ghost'
-  let ghostOn = localStorage.getItem(GHOST_PREF_KEY) !== 'false'
-  const ghostBtn = document.getElementById('result-ghost-toggle')
-  if (ghostBtn) {
-    ghostBtn.textContent = `👻 Show ghost run: ${ghostOn ? 'ON' : 'OFF'}`
-    ghostBtn.addEventListener('click', () => {
-      ghostOn = !ghostOn
-      localStorage.setItem(GHOST_PREF_KEY, String(ghostOn))
-      ghostBtn.textContent = `👻 Show ghost run: ${ghostOn ? 'ON' : 'OFF'}`
-    })
-  }
+  // (Ghost toggle moved to Settings modal on the title screen; default OFF.)
 
   // Extra-play purchase pill
   // Charter §4 alignment: buying an extra play grants ONE additional fresh

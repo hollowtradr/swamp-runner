@@ -98,11 +98,25 @@ function showTitleScreen(session: SessionData | null): void {
   const midiBalance = session?.midi_balance ?? '—'
   const displayName = session?.display_name ?? 'Wanderer'
 
+  // Player meta strip pinned to the top (compact, low-weight).
+  // Demo-mode banner replaces it when no session.
+  const metaStripHtml = !isDemoMode
+    ? `<div class="title-meta-strip">
+         <span class="title-meta-name">${escapeHtml(displayName)}</span>
+         <span class="title-meta-dot">·</span>
+         <span class="title-meta-stat">⚡ ${midiBalance}</span>
+         <span class="title-meta-dot">·</span>
+         <span class="title-meta-stat">${playsLeft} run${playsLeft === 1 ? '' : 's'} left</span>
+       </div>`
+    : `<div class="title-meta-strip title-meta-demo">⚠️ Demo — launch from @stickergalaxybot</div>`
+
   titleEl.innerHTML = `
     <div class="title-bg">
       <div class="title-mist title-mist-1"></div>
       <div class="title-mist title-mist-2"></div>
     </div>
+
+    ${metaStripHtml}
 
     <div class="title-content">
       <div class="title-hero">
@@ -121,17 +135,9 @@ function showTitleScreen(session: SessionData | null): void {
         </p>
       </div>
 
-      ${!isDemoMode ? `
-      <div class="title-player-card">
-        <span class="title-player-name">${escapeHtml(displayName)}</span>
-        <div class="title-player-stats">
-          <span>⚡ ${midiBalance} midi</span>
-          <span class="title-divider">·</span>
-          <span>${playsLeft} run${playsLeft === 1 ? '' : 's'} left today</span>
-        </div>
-      </div>` : `
-      <div class="title-demo-badge">⚠️ Demo mode — launch from @stickergalaxybot for rewards</div>
-      `}
+      <button id="play-btn" class="btn swamp-play-btn">
+        ▶ Begin Training
+      </button>
 
       <div class="title-controls-hint">
         <div class="title-control-row">
@@ -142,15 +148,16 @@ function showTitleScreen(session: SessionData | null): void {
         </div>
       </div>
 
-      <button id="play-btn" class="btn swamp-play-btn">
-        ▶ Begin Training
-      </button>
-      <button id="lb-btn" class="btn btn-ghost swamp-ghost-btn">
-        🏆 Leaderboard
-      </button>
-      <button id="settings-btn" class="btn btn-ghost swamp-ghost-btn">
-        ⚙️ Settings
-      </button>
+      <div class="title-icon-row">
+        <button id="lb-btn" class="title-icon-btn" aria-label="Leaderboard">
+          <span class="title-icon-glyph">🏆</span>
+          <span class="title-icon-label">Leaderboard</span>
+        </button>
+        <button id="settings-btn" class="title-icon-btn" aria-label="Settings">
+          <span class="title-icon-glyph">⚙️</span>
+          <span class="title-icon-label">Settings</span>
+        </button>
+      </div>
     </div>
   `
 

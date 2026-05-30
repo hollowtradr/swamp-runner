@@ -30,41 +30,50 @@ export function showSettingsModal(): void {
   _overlay = document.createElement('div')
   _overlay.className = 'settings-overlay'
   _overlay.innerHTML = `
-    <div class="settings-card">
-      <div class="settings-header">
-        <span class="settings-title">⚙️ Settings</span>
-        <button id="settings-close" class="settings-close-btn" aria-label="Close settings">✕</button>
-      </div>
-
-      <div class="settings-body">
-        <div class="settings-section-label">Game</div>
-
-        <label class="settings-row">
-          <div class="settings-row-label">
-            <span class="settings-row-title">Show PB Ghost</span>
-            <span class="settings-row-sub">Race a cyan silhouette of your best run. Only appears when the random seed happens to match a stored PB — off by default since seeds change each run.</span>
+    <div class="settings-scroll">
+      <div class="settings-parchment">
+        <div class="settings-header">
+          <div class="settings-title-block">
+            <div class="settings-eyebrow">Sticker Galaxy Arcade</div>
+            <h2 class="settings-title">Settings</h2>
           </div>
-          <input type="checkbox" id="setting-ghost" class="settings-toggle" ${showGhost ? 'checked' : ''} />
-        </label>
+          <button id="settings-close" class="settings-close-btn" aria-label="Close settings">✕</button>
+        </div>
 
-        <div class="settings-section-label">Account</div>
+        <div class="settings-body">
+          <div class="settings-section-label">Game</div>
 
-        <button id="setting-wallet" class="settings-row settings-row-button" ${inShell ? '' : 'disabled'}>
-          <div class="settings-row-label">
-            <span class="settings-row-title">Wallet &amp; connections</span>
-            <span class="settings-row-sub">${inShell
-              ? 'Connect, disconnect, or switch wallets. Opens the Sticker Galaxy settings panel — your binding is shared across the bot and every game.'
-              : 'Available inside Sticker Galaxy / Baby Yoda bot.'}</span>
-          </div>
-          <span class="settings-row-chevron" aria-hidden="true">→</span>
-        </button>
-      </div>
+          <label class="settings-row">
+            <div class="settings-row-label">
+              <span class="settings-row-title">Show PB Ghost</span>
+              <span class="settings-row-sub">Race a cyan silhouette of your best run. Only appears when the random seed matches a stored PB — off by default since seeds change each run.</span>
+            </div>
+            <input type="checkbox" id="setting-ghost" class="settings-toggle" ${showGhost ? 'checked' : ''} />
+          </label>
 
-      <div class="settings-footer">
-        <button id="settings-done" class="btn swamp-play-btn settings-done-btn">Done</button>
+          <div class="settings-section-label">Account</div>
+
+          <button id="setting-wallet" class="settings-row settings-row-button" ${inShell ? '' : 'disabled'}>
+            <div class="settings-row-label">
+              <span class="settings-row-title">Wallet &amp; connections</span>
+              <span class="settings-row-sub">${inShell
+                ? 'Connect, disconnect, or switch wallets. Opens the Sticker Galaxy settings panel — your binding is shared across the bot and every game.'
+                : 'Available inside Sticker Galaxy / Baby Yoda bot.'}</span>
+            </div>
+            <span class="settings-row-chevron" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div class="settings-footer">
+          <button id="settings-done" class="btn swamp-play-btn settings-done-btn">Done</button>
+        </div>
       </div>
     </div>
   `
+
+  _overlay.addEventListener('click', (e) => {
+    if (e.target === _overlay) hideSettingsModal()
+  })
 
   document.getElementById('app')?.appendChild(_overlay)
 
