@@ -31,6 +31,7 @@ import {
   type Replay,
   type GhostSample,
 } from 'sticker-galaxy-sdk-core'
+import { SWAMP_RUNNER_CHUNKS } from '../chunks/index.js'
 
 type GameEndCallback = (score: number, outcome: 'win' | 'loss') => void
 
@@ -41,8 +42,12 @@ let _state: GameState | null = null
 let _onEnd: GameEndCallback | null = null
 let _currentReplay: Replay | null = null
 
-// ── Build hash (Phase 1: simple version string; Phase 3: content hash) ────────
-const BUILD_HASH = '1.0.0-phase1'
+// ── Build hash (Phase 2: bumped to phase2; Phase 3: content hash) ──────────
+const BUILD_HASH = '1.0.0-phase2'
+
+/** True when ?legacy=1 is in the URL — forces IID spawner for A/B. */
+const LEGACY_MODE = typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).has('legacy')
 
 // ── localStorage keys ─────────────────────────────────────────────────────────
 const LS_PB_GHOST = 'swamp_runner:pb_ghost'
@@ -78,7 +83,15 @@ export async function startGame(
   const w = window.innerWidth
   const h = window.innerHeight
 
-  _state = createInitialState(w, h, seed, mode)
+  // Daily mode always uses chunks; ?legacy=1 forces IID for one-release A/B.
+  // Chunks are passed to createInitialState; if LEGACY_MODE the factory
+  // receives an empty array which triggers the 'iid' spawnMode.
+  const chunksForRun = (LEGACY_MODE && mode !== 'daily') ? [] : SWAMP_RUNNER_CHUNKS
+  if (LEGACY_MODE && mode !== 'daily') {
+    console.log('[esport] ?legacy=1 — using IID spawner')
+  }
+
+  _state = createInitialState(w, h, seed, mode, chunksForRun)
   _state.phase = 'playing'
 
   // Load PB ghost from localStorage

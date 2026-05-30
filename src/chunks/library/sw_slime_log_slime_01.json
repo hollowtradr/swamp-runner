@@ -1,0 +1,16 @@
+{
+  "id": "sw_slime_log_slime_01",
+  "game": "swamp_runner",
+  "difficulty": 3,
+  "duration_ms": 3000,
+  "tags": ["jump", "platform", "combo"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 200,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1000, "type": "log",     "lane": "platform",
+      "params": { "width": 90 } },
+    { "offset_ms": 1300, "type": "essence", "lane": "air-low" },
+    { "offset_ms": 2200, "type": "slime",   "lane": "ground" }
+  ]
+}

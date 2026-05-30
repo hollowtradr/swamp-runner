@@ -1,0 +1,15 @@
+{
+  "id": "sw_mynock_slime_combo_01",
+  "game": "swamp_runner",
+  "difficulty": 5,
+  "duration_ms": 2800,
+  "tags": ["jump", "dive", "combo"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1200, "type": "mynock",  "lane": "air-low",
+      "params": { "comment": "must be grounded (not jumping) to pass under" } },
+    { "offset_ms": 800,  "type": "essence", "lane": "air-low" }
+  ]
+}

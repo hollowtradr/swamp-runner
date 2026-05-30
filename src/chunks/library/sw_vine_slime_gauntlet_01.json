@@ -1,0 +1,17 @@
+{
+  "id": "sw_vine_slime_gauntlet_01",
+  "game": "swamp_runner",
+  "difficulty": 8,
+  "duration_ms": 3600,
+  "tags": ["vine", "jump", "gauntlet"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 200,  "type": "vine",    "lane": "air-low" },
+    { "offset_ms": 900,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1600, "type": "vine",    "lane": "air-low" },
+    { "offset_ms": 2300, "type": "slime",   "lane": "ground" },
+    { "offset_ms": 550,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1950, "type": "essence", "lane": "air-low" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "sw_slime_floor_lava_01",
+  "game": "swamp_runner",
+  "difficulty": 7,
+  "duration_ms": 3000,
+  "tags": ["jump", "ground", "dense"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 200,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 700,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1200, "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1700, "type": "slime",   "lane": "ground" },
+    { "offset_ms": 450,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 950,  "type": "essence", "lane": "air-low" }
+  ]
+}

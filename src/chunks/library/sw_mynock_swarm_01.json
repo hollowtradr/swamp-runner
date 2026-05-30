@@ -1,0 +1,18 @@
+{
+  "id": "sw_mynock_swarm_01",
+  "game": "swamp_runner",
+  "difficulty": 9,
+  "duration_ms": 3600,
+  "tags": ["dive", "air", "swarm", "expert"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 100,  "type": "mynock",  "lane": "air-low" },
+    { "offset_ms": 800,  "type": "mynock",  "lane": "air-low" },
+    { "offset_ms": 1500, "type": "mynock",  "lane": "air-low" },
+    { "offset_ms": 2200, "type": "mynock",  "lane": "air-low" },
+    { "offset_ms": 450,  "type": "essence", "lane": "ground" },
+    { "offset_ms": 1150, "type": "essence", "lane": "ground" },
+    { "offset_ms": 1850, "type": "essence", "lane": "ground" }
+  ]
+}

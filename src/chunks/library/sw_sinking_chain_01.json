@@ -1,0 +1,17 @@
+{
+  "id": "sw_sinking_chain_01",
+  "game": "swamp_runner",
+  "difficulty": 6,
+  "duration_ms": 3600,
+  "tags": ["platform", "sinking", "chain"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "sinking_log", "lane": "platform",
+      "params": { "width": 90 } },
+    { "offset_ms": 700,  "type": "essence",     "lane": "air-low" },
+    { "offset_ms": 1600, "type": "sinking_log", "lane": "platform",
+      "params": { "width": 90 } },
+    { "offset_ms": 2000, "type": "essence",     "lane": "air-low" }
+  ]
+}

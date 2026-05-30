@@ -1,0 +1,15 @@
+{
+  "id": "sw_solo_essence_arc_01",
+  "game": "swamp_runner",
+  "difficulty": 1,
+  "duration_ms": 2000,
+  "tags": ["pickup", "arc"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 700,  "type": "essence", "lane": "air-high" },
+    { "offset_ms": 1100, "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1500, "type": "essence", "lane": "ground" }
+  ]
+}

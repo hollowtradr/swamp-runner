@@ -1,0 +1,14 @@
+{
+  "id": "sw_slime_vine_combo_01",
+  "game": "swamp_runner",
+  "difficulty": 4,
+  "duration_ms": 2800,
+  "tags": ["jump", "vine", "combo"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 1200, "type": "vine",    "lane": "air-low" },
+    { "offset_ms": 1000, "type": "essence", "lane": "air-low" }
+  ]
+}

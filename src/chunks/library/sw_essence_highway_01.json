@@ -1,0 +1,16 @@
+{
+  "id": "sw_essence_highway_01",
+  "game": "swamp_runner",
+  "difficulty": 2,
+  "duration_ms": 2400,
+  "tags": ["pickup", "arc", "reward"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 200,  "type": "essence", "lane": "ground" },
+    { "offset_ms": 600,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1000, "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1400, "type": "essence", "lane": "ground" },
+    { "offset_ms": 1800, "type": "essence", "lane": "air-low" }
+  ]
+}

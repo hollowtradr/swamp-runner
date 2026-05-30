@@ -1,0 +1,14 @@
+{
+  "id": "sw_double_slime_wide_01",
+  "game": "swamp_runner",
+  "difficulty": 2,
+  "duration_ms": 2400,
+  "tags": ["jump", "ground", "rhythm"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 200,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 800,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1400, "type": "slime",   "lane": "ground" }
+  ]
+}

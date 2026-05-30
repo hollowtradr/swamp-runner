@@ -1,0 +1,14 @@
+{
+  "id": "sw_vine_then_mynock_01",
+  "game": "swamp_runner",
+  "difficulty": 6,
+  "duration_ms": 3200,
+  "tags": ["vine", "dive", "timing"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "vine",    "lane": "air-low" },
+    { "offset_ms": 700,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 1800, "type": "mynock",  "lane": "air-low" }
+  ]
+}

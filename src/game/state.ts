@@ -5,7 +5,7 @@
  * Physics and spawn logic mutate this object directly each frame.
  */
 
-import { SeededRNG, type Mode, type InputEvent, type GhostSample, GhostTrack } from 'sticker-galaxy-sdk-core'
+import { SeededRNG, type Mode, type InputEvent, type GhostSample, GhostTrack, ChunkPicker, type LaneState, type Chunk } from 'sticker-galaxy-sdk-core'
 export { SeededRNG, GhostTrack }
 export type { Mode, InputEvent, GhostSample }
 
@@ -132,6 +132,30 @@ export interface GameState {
   pbGhostTrack: GhostTrack | null
   /** Whether to render the ghost overlay. */
   showGhost: boolean
+
+  // ── Phase 2: chunk picker ────────────────────────────────────────────────────
+  /**
+   * 'chunks' = authored chunk stream (default).
+   * 'iid'    = legacy independent per-tick probability spawner (?legacy=1).
+   * Daily mode always forces 'chunks' regardless of URL param.
+   */
+  spawnMode: 'chunks' | 'iid'
+  /**
+   * Deterministic chunk picker. Null when spawnMode === 'iid'.
+   * Initialized in createInitialState() when spawnMode === 'chunks'.
+   */
+  chunkPicker: ChunkPicker | null
+  /**
+   * Screen X of the right edge of the last queued chunk.
+   * Decrements by scrollSpeed*dt each tick (same as obstacle x).
+   * When it falls below canvasW + 80, maybeSpawn() enqueues more chunks.
+   */
+  chunkQueueScreenX: number
+  /**
+   * The exit LaneState of the most recently queued chunk.
+   * ChunkPicker uses it to enforce entry contracts on the next chunk.
+   */
+  lastChunkExit: LaneState
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -172,10 +196,18 @@ export const GAME_OVER_QUOTES = [
 
 /**
  * Create a fresh GameState for a new run.
- * @param seed  Seed for the run's PRNG (casual: crypto random, daily: derived).
- * @param mode  Run mode.
+ * @param seed    Seed for the run's PRNG (casual: crypto random, daily: derived).
+ * @param mode    Run mode.
+ * @param chunks  Chunk library (pass SWAMP_RUNNER_CHUNKS). When omitted or empty,
+ *                falls back to legacy IID spawner.
  */
-export function createInitialState(canvasW: number, canvasH: number, seed = 0, mode: Mode = 'casual'): GameState {
+export function createInitialState(
+  canvasW: number,
+  canvasH: number,
+  seed = 0,
+  mode: Mode = 'casual',
+  chunks: Chunk[] = [],
+): GameState {
   const groundY = Math.round(canvasH * 0.74)
   const playerX = Math.round(canvasW * 0.18)
 
@@ -221,7 +253,7 @@ export function createInitialState(canvasW: number, canvasH: number, seed = 0, m
     spawnTimer: 0,
     idCounter: 1,
 
-    // Esport fields
+    // Esport fields (Phase 1)
     seed,
     mode,
     rng: new SeededRNG(seed),
@@ -230,6 +262,20 @@ export function createInitialState(canvasW: number, canvasH: number, seed = 0, m
     ghostSamples: [],
     pbGhostTrack: null,
     showGhost: true,
+
+    // Phase 2: chunk picker
+    // Daily mode always uses chunks; casual uses chunks if library provided;
+    // ?legacy=1 URL param forces IID path (see game/index.ts).
+    spawnMode: (chunks.length > 0 || mode === 'daily') ? 'chunks' : 'iid',
+    chunkPicker: chunks.length > 0
+      ? new ChunkPicker(chunks, new SeededRNG(seed))
+      : null,
+    // Queue starts just off the right edge of the viewport.
+    // canvasW is passed in but not available here — phaser-scene will
+    // prime the queue via the first maybeSpawn() call in physics, which
+    // receives canvasW. We start at 0 so the first tick immediately fills.
+    chunkQueueScreenX: 0,
+    lastChunkExit: { lanes: ['ground'] },
   }
 }
 
@@ -276,8 +322,14 @@ export function applyRevive(state: GameState): void {
     (p) => p.x < state.player.x - 50 || p.x > state.player.x + safetyMargin,
   )
 
-  // Reset spawn timer so new entities start spawning at normal cadence.
+  // Reset spawn timer (legacy IID path) and chunk queue (Phase 2 path).
   state.spawnTimer = 0
+  // Chunk queue: reset to 0 so the first post-revive maybeSpawn() refills
+  // the queue cleanly from the current chunk picker state. Also reset the
+  // recent-window so the player doesn't see the same pre-death pattern.
+  state.chunkQueueScreenX = 0
+  state.lastChunkExit = { lanes: ['ground'] }
+  state.chunkPicker?.reset()
   // Flash the screen so the revive is visually obvious.
   state.screenFlashTimer = 0.3
 }

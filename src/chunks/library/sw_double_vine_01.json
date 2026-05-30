@@ -1,0 +1,14 @@
+{
+  "id": "sw_double_vine_01",
+  "game": "swamp_runner",
+  "difficulty": 6,
+  "duration_ms": 3200,
+  "tags": ["vine", "timing", "double"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "vine",    "lane": "air-low" },
+    { "offset_ms": 900,  "type": "essence", "lane": "ground" },
+    { "offset_ms": 1600, "type": "vine",    "lane": "air-low" }
+  ]
+}

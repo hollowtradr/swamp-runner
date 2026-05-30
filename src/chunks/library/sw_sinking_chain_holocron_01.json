@@ -1,0 +1,19 @@
+{
+  "id": "sw_sinking_chain_holocron_01",
+  "game": "swamp_runner",
+  "difficulty": 8,
+  "duration_ms": 4000,
+  "tags": ["platform", "sinking", "apex", "pickup"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "sinking_log", "lane": "platform",
+      "params": { "width": 90 } },
+    { "offset_ms": 700,  "type": "essence",     "lane": "air-low" },
+    { "offset_ms": 1500, "type": "sinking_log", "lane": "platform",
+      "params": { "width": 90 } },
+    { "offset_ms": 1900, "type": "essence",     "lane": "air-low" },
+    { "offset_ms": 2600, "type": "holocron",    "lane": "air-high",
+      "params": { "comment": "max-line: must nail the second sinking log hop and apex jump" } }
+  ]
+}

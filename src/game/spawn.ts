@@ -1,143 +1,144 @@
 /**
- * src/game/spawn.ts — Obstacle, pickup, and platform spawner
+ * src/game/spawn.ts — Phase 2 chunk-based spawner.
  *
- * Called each fixed-step tick when spawnTimer exceeds a threshold.
- * Difficulty scales with gameTime.
+ * Replaces the Phase 1 IID (independent per-tick probability) spawner.
+ * Drives all obstacle/pickup/platform creation from a deterministic
+ * ChunkPicker stream instead of independent probability rolls.
  *
- * Phase 1 esport: ALL randomness goes through state.rng (SeededRNG).
- * Zero Math.random() in any spawn path — full determinism for given seed.
+ * Key guarantees:
+ *   - Same seed + same chunk library → same run every time (via SeededRNG)
+ *   - Entry/exit contracts always satisfied (bridge chunks fill gaps)
+ *   - No chunk repeats within 4-chunk window (variety guarantee)
+ *   - Always-solvable: every chunk passes solo-solvability authoring check
  *
- * TODO Phase 2: Replace probability-table spawner with chunk picker.
- * Hook: maybeSpawn() is the single entry point — replace its body with
- * a chunk-stream consumer. The rng and seed infrastructure is already in
- * state and will be reused unchanged.
+ * Legacy IID path is in spawn-legacy.ts behind the ?legacy=1 URL param.
+ * GameState.spawnMode controls which path is active.
  */
 
+import type { Chunk } from 'sticker-galaxy-sdk-core'
 import {
   type GameState,
   type Obstacle,
-  type ObstacleType,
   type Pickup,
   type Platform,
   nextId,
 } from './state.js'
 
-// ── Spawn intervals ───────────────────────────────────────────────────────────
+// ── Spatial conversion ────────────────────────────────────────────────────────
 
-function spawnInterval(gameTime: number): number {
-  // Seconds between spawn events (decreases with time)
-  if (gameTime < 10)  return 2.4
-  if (gameTime < 30)  return 1.8
-  if (gameTime < 60)  return 1.3
-  return 0.9
+/**
+ * Pixels per millisecond used to convert chunk duration / entity offset_ms
+ * into screen-space pixel distances.
+ *
+ * Chosen as 0.25 px/ms (250 px/s), which lies between BASE_SCROLL_SPEED (200)
+ * and mid-game speed. Playback fidelity is accurate at ~250 px/s and degrades
+ * gracefully at higher/lower speeds (acceptable for Phase 2 per spec).
+ */
+export const SCROLL_PX_PER_MS = 0.25
+
+// ── Lane → screen Y ───────────────────────────────────────────────────────────
+
+function laneToY(lane: string, groundY: number, entityType: string): number {
+  switch (lane) {
+    case 'ground':
+      // Slimes sit on the floor; bibo swims just below ground level
+      return entityType === 'bibo' ? groundY - 20 : groundY - 18
+    case 'air-low':
+      // Mynocks + essence at low jump height (~90px above ground)
+      return groundY - 90
+    case 'air-high':
+      // Holocrons + essence at double-jump apex (~155px above ground)
+      return groundY - 155
+    case 'platform':
+      // Log tops float 40-55px above the ground line
+      return groundY - 55
+    default:
+      return groundY - 40
+  }
 }
 
-function groundObstacleChance(gameTime: number): number {
-  if (gameTime < 5)  return 0
-  if (gameTime < 15) return 0.35
-  if (gameTime < 30) return 0.50
-  return 0.60
-}
+// ── Main entry point ──────────────────────────────────────────────────────────
 
-function mynockChance(gameTime: number): number {
-  if (gameTime < 10) return 0
-  if (gameTime < 30) return 0.20
-  if (gameTime < 60) return 0.35
-  return 0.45
-}
-
-function vineChance(gameTime: number): number {
-  if (gameTime < 20) return 0
-  if (gameTime < 40) return 0.15
-  if (gameTime < 60) return 0.25
-  return 0.35
-}
-
-function logChance(gameTime: number): number {
-  if (gameTime < 8)  return 0.3
-  if (gameTime < 30) return 0.40
-  return 0.30
-}
-
-function sinkingLogChance(gameTime: number): number {
-  if (gameTime < 20) return 0
-  if (gameTime < 40) return 0.3
-  return 0.5
-}
-
-function essenceChance(gameTime: number): number {
-  return gameTime < 5 ? 0.3 : 0.55
-}
-
-function holocronChance(_gameTime: number): number {
-  return 0.08  // always rare
-}
-
-function biboChance(_gameTime: number): number {
-  return 0.025  // very rare
-}
-
-// ── Main spawn function ───────────────────────────────────────────────────────
-
+/**
+ * Called each fixed-step tick from physics.ts.
+ *
+ * Keeps the chunk queue filled: while the right edge of the queued chunk
+ * stream is within view + 80px buffer, pop the next chunk from ChunkPicker
+ * and lay its entities at the current queue X.
+ *
+ * `state.chunkQueueScreenX` is advanced forward by each chunk's pixel span.
+ * Physics decrements chunkQueueScreenX by (scroll * dt) each tick, so the
+ * window naturally slides leftward with the world.
+ */
 export function maybeSpawn(state: GameState, canvasW: number): void {
-  const { gameTime, rng } = state
-  const interval = spawnInterval(gameTime)
+  if (state.spawnMode !== 'chunks') return
+  if (!state.chunkPicker) return
 
-  state.spawnTimer += 1 / 60  // called once per fixed step at 60Hz
-  if (state.spawnTimer < interval) return
-  state.spawnTimer = 0
-
-  const spawnX = canvasW + 80  // off-screen right
-
-  // --- Ground obstacles (slime) ---
-  if (rng.next() < groundObstacleChance(gameTime)) {
-    if (!hasObstacleWithin(state, 'slime', spawnX, 200)) {
-      spawnSlime(state, spawnX)
-    }
+  // Keep ~1 screen width of chunks pre-queued ahead of the viewport.
+  while (state.chunkQueueScreenX < canvasW + 80) {
+    const chunk = state.chunkPicker.next(
+      state.gameTime * 1000,   // gameTime is in seconds; picker expects ms
+      state.mode,
+      state.lastChunkExit,
+    )
+    lay(state, chunk, state.chunkQueueScreenX)
+    state.chunkQueueScreenX += chunk.duration_ms * SCROLL_PX_PER_MS
+    state.lastChunkExit = chunk.exit
   }
-
-  // --- Mynock ---
-  if (rng.next() < mynockChance(gameTime)) {
-    const hasNearVine = hasObstacleWithin(state, 'vine', spawnX, 300)
-    if (!hasNearVine) {
-      spawnMynock(state, spawnX, state.groundY)
-    }
-  }
-
-  // --- Vine with shadow ---
-  if (rng.next() < vineChance(gameTime)) {
-    if (!hasObstacleWithin(state, 'vine', spawnX, 500)) {
-      spawnVine(state, spawnX + 60, canvasW)  // slightly further right
-    }
-  }
-
-  // --- Log platform ---
-  if (rng.next() < logChance(gameTime)) {
-    const sinking = rng.next() < sinkingLogChance(gameTime)
-    spawnLog(state, spawnX + 120, state.groundY, sinking)
-  }
-
-  // --- Pickups (separate timer would be cleaner but this works) ---
-  if (rng.next() < biboChance(gameTime)) {
-    spawnPickup(state, spawnX + 30, state.groundY, 'bibo')
-  } else if (rng.next() < holocronChance(gameTime)) {
-    spawnPickup(state, spawnX + 30, state.groundY, 'holocron')
-  } else if (rng.next() < essenceChance(gameTime)) {
-    spawnPickup(state, spawnX, state.groundY, 'essence')
-  }
-
-  // Solvability pass: remove impossible triple-stacks and vine bunching
-  validateSolvability(state, canvasW)
 }
 
-// ── Obstacle factories ────────────────────────────────────────────────────────
+// ── Chunk → entities ─────────────────────────────────────────────────────────
 
-function spawnSlime(state: GameState, x: number): void {
-  const w = 30 + state.rng.next() * 30
+/**
+ * Translate a Chunk's entities into actual Obstacle / Pickup / Platform
+ * records at position `startX` on screen.
+ */
+function lay(state: GameState, chunk: Chunk, startX: number): void {
+  for (const entity of chunk.entities) {
+    const x = startX + entity.offset_ms * SCROLL_PX_PER_MS
+    const y = laneToY(entity.lane, state.groundY, entity.type)
+    const p = entity.params ?? {}
+
+    switch (entity.type) {
+      case 'slime':
+        laySlime(state, x, y, p)
+        break
+      case 'mynock':
+        layMynock(state, x, y)
+        break
+      case 'vine':
+        layVine(state, x, y)
+        break
+      case 'log':
+        layLog(state, x, y, false, p)
+        break
+      case 'sinking_log':
+        layLog(state, x, y, true, p)
+        break
+      case 'essence':
+      case 'holocron':
+      case 'bibo':
+        layPickup(state, x, y, entity.type)
+        break
+    }
+  }
+}
+
+// ── Entity factories ──────────────────────────────────────────────────────────
+
+function laySlime(
+  state: GameState,
+  x: number,
+  y: number,
+  params: Record<string, number | string | boolean>,
+): void {
+  // Params can override width; default to a fixed size (not random) so
+  // determinism is maintained. Small slime = 32px, default = 42px.
+  const w = typeof params.width === 'number' ? params.width : 42
   const ob: Obstacle = {
     id: nextId(state),
     x,
-    y: state.groundY - 18,
+    y,
     width: w,
     height: 18,
     type: 'slime',
@@ -149,29 +150,30 @@ function spawnSlime(state: GameState, x: number): void {
   state.obstacles.push(ob)
 }
 
-function spawnMynock(state: GameState, x: number, groundY: number): void {
-  // Mynocks fly at mid-height: player must be jumping (higher) or they pass below
-  const yTop = groundY - 70 - state.rng.next() * 60  // 70-130px above ground
+function layMynock(state: GameState, x: number, y: number): void {
+  // Fixed height band — avoids random wobble in placement (wobble is render-
+  // only and driven by gameTime, not spawn-time). Y is set by laneToY.
   const ob: Obstacle = {
     id: nextId(state),
     x,
-    y: yTop,
+    y,
     width: 64,
     height: 28,
     type: 'mynock',
     pairId: 0,
     dropCountdown: 0,
     dropped: false,
-    vy: (state.rng.next() - 0.5) * 40,  // slight up-down wobble
+    vy: 0,
   }
   state.obstacles.push(ob)
 }
 
-function spawnVine(state: GameState, x: number, _canvasW: number): void {
+function layVine(state: GameState, x: number, _y: number): void {
+  // Vine always drops from the top. The shadow sits at groundY;
+  // the vine itself starts above screen.
   const pairId = nextId(state)
-  const vineH = 40 + state.rng.next() * 80  // how far it drops
+  const vineH = 80  // fixed height for authored chunks (no randomness)
 
-  // Shadow first (appears at ground level)
   const shadow: Obstacle = {
     id: nextId(state),
     x: x - 15,
@@ -180,16 +182,14 @@ function spawnVine(state: GameState, x: number, _canvasW: number): void {
     height: 10,
     type: 'vine_shadow',
     pairId,
-    dropCountdown: 1.0,  // 1 second warning
+    dropCountdown: 1.0,
     dropped: false,
     vy: 0,
   }
-
-  // Vine (starts at top, drops after 1s)
   const vine: Obstacle = {
     id: nextId(state),
     x: x - 10,
-    y: -vineH,   // starts above screen
+    y: -vineH,
     width: 20,
     height: vineH,
     type: 'vine',
@@ -198,27 +198,22 @@ function spawnVine(state: GameState, x: number, _canvasW: number): void {
     dropped: false,
     vy: 0,
   }
-
   state.obstacles.push(shadow, vine)
 }
 
-// ── Platform factory ──────────────────────────────────────────────────────────
-
-function spawnLog(
+function layLog(
   state: GameState,
   x: number,
-  groundY: number,
+  y: number,
   sinking: boolean,
+  params: Record<string, number | string | boolean>,
 ): void {
-  const w = 90 + state.rng.next() * 60
-  // Logs float 40-70px above ground level
-  const yAbove = 40 + state.rng.next() * 30
-  const logTopY = groundY - yAbove - 16  // top surface Y
-
+  const w = typeof params.width === 'number' ? params.width : 100
+  // y is the log TOP surface (laneToY returns platform lane Y)
   const pl: Platform = {
     id: nextId(state),
     x,
-    y: logTopY,
+    y,
     width: w,
     height: 16,
     type: sinking ? 'sinking_log' : 'log',
@@ -229,94 +224,13 @@ function spawnLog(
   state.platforms.push(pl)
 }
 
-// ── Cooldown helper ──────────────────────────────────────────────────────
-
-/**
- * Returns true if there's already an obstacle of `type` with x-position
- * within `distance` pixels of `spawnX` (looking at in-flight obstacles on the right side).
- */
-function hasObstacleWithin(
-  state: GameState,
-  type: ObstacleType,
-  spawnX: number,
-  distance: number,
-): boolean {
-  return state.obstacles.some(
-    (ob) => ob.type === type && ob.x > 0 && Math.abs(ob.x - spawnX) < distance,
-  )
-}
-
-// ── Solvability validator ────────────────────────────────────────────────────
-
-const SOLVABILITY_LOOKAHEAD = 600  // px forward window to inspect
-const COLUMN_BIN_WIDTH = 80        // px bin size for column grouping
-const VINE_MIN_GAP = 150           // px: two vines closer than this = one removed
-
-/**
- * After each spawn event, scan the upcoming obstacle window and remove
- * configurations that create unjumpable stacks:
- *   1. Triple-stack: ground slime + overhead mynock + vine in the same 80px column
- *      — remove the newest obstacle (highest id).
- *   2. Two vines within 150px — remove the newer one.
- */
-function validateSolvability(state: GameState, canvasW: number): void {
-  const lookaheadEnd = canvasW + SOLVABILITY_LOOKAHEAD
-  const inWindow = state.obstacles.filter((ob) => ob.x > 0 && ob.x < lookaheadEnd)
-
-  // — Rule 2: paired vines too close together ————————————————————————
-  const vines = inWindow.filter((ob) => ob.type === 'vine').sort((a, b) => a.x - b.x)
-  for (let i = 0; i < vines.length - 1; i++) {
-    const gap = Math.abs(vines[i + 1].x - vines[i].x)
-    if (gap < VINE_MIN_GAP) {
-      // Remove the newer vine (higher id) and its shadow
-      const newerVine: Obstacle = vines[i].id > vines[i + 1].id ? vines[i] : vines[i + 1]
-      console.debug(`[solvability] removed obstacle id=${newerVine.id}, reason=vine_too_close gap=${gap}px`)
-      state.obstacles = state.obstacles.filter(
-        (ob) => ob.id !== newerVine.id && !(ob.type === 'vine_shadow' && ob.pairId === newerVine.pairId),
-      )
-    }
-  }
-
-  // — Rule 1: triple-stack (slime + mynock + vine in same column) ————————
-  // Group surviving obstacles by column bin
-  const surviving = state.obstacles.filter((ob) => ob.x > 0 && ob.x < lookaheadEnd)
-  const columns = new Map<number, Obstacle[]>()
-  for (const ob of surviving) {
-    const bin = Math.floor(ob.x / COLUMN_BIN_WIDTH)
-    const col = columns.get(bin) ?? []
-    col.push(ob)
-    columns.set(bin, col)
-  }
-
-  for (const [, col] of columns) {
-    const types = new Set(col.map((o) => o.type))
-    if (types.has('slime') && types.has('mynock') && types.has('vine')) {
-      // Triple-stack: remove newest obstacle in this column
-      const newest = col.reduce((prev, cur) => (cur.id > prev.id ? cur : prev))
-      console.debug(`[solvability] removed obstacle id=${newest.id}, reason=triple_stack col_bin=${Math.floor(newest.x / COLUMN_BIN_WIDTH)}`)
-      state.obstacles = state.obstacles.filter((ob) => ob.id !== newest.id)
-    }
-  }
-}
-
-// ── Pickup factory ────────────────────────────────────────────────────────────
-
-function spawnPickup(
+function layPickup(
   state: GameState,
   x: number,
-  groundY: number,
+  y: number,
   type: 'essence' | 'holocron' | 'bibo',
 ): void {
-  let y: number
-  if (type === 'essence') {
-    y = groundY - 40 - state.rng.next() * 80
-  } else if (type === 'holocron') {
-    y = groundY - 60 - state.rng.next() * 60
-  } else {
-    // Bibo swims — show near ground level, slightly below
-    y = groundY - 20
-  }
-
+  // Use state.rng only for the glow phase (visual only, doesn't affect gameplay).
   const pk: Pickup = {
     id: nextId(state),
     x,

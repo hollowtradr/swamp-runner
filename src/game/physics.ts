@@ -26,6 +26,7 @@ import {
   PACE_SCALE,
 } from './state.js'
 import { maybeSpawn } from './spawn.js'
+import { maybeSpawnLegacy } from './spawn-legacy.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,9 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
   for (const pl of state.platforms) pl.x -= scroll
   for (const ob of state.obstacles) ob.x -= scroll
   for (const pk of state.pickups) pk.x -= scroll
+  // Phase 2: advance chunk queue cursor with the world scroll so maybeSpawn
+  // knows when to enqueue the next chunk.
+  state.chunkQueueScreenX -= scroll
 
   // ── Distance / score ────────────────────────────────────────────────────────
   state.distance = Math.floor(state.worldOffset / PACE_SCALE)
@@ -319,7 +323,12 @@ export function updatePhysics(state: GameState, dt: number, canvasW: number, _ca
   state.pickups   = state.pickups.filter((pk) => !pk.collected && pk.x + 50 > cullX)
 
   // ── Spawn new objects ─────────────────────────────────────────────────────────
-  maybeSpawn(state, canvasW)
+  // Phase 2: route to chunk spawner or legacy IID spawner
+  if (state.spawnMode === 'iid') {
+    maybeSpawnLegacy(state, canvasW)
+  } else {
+    maybeSpawn(state, canvasW)
+  }
 
   // ── Score milestones ─────────────────────────────────────────────────────────
   for (const milestone of SCORE_MILESTONES) {

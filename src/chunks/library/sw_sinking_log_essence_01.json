@@ -1,0 +1,16 @@
+{
+  "id": "sw_sinking_log_essence_01",
+  "game": "swamp_runner",
+  "difficulty": 5,
+  "duration_ms": 2800,
+  "tags": ["platform", "sinking", "timing"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "sinking_log", "lane": "platform",
+      "params": { "width": 100 } },
+    { "offset_ms": 700,  "type": "essence",     "lane": "air-low" },
+    { "offset_ms": 1100, "type": "essence",     "lane": "air-high",
+      "params": { "comment": "max-line: requires jumping on sinking log and double-jumping" } }
+  ]
+}

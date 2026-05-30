@@ -1,0 +1,14 @@
+{
+  "id": "sw_bibo_safe_01",
+  "game": "swamp_runner",
+  "difficulty": 2,
+  "duration_ms": 2400,
+  "tags": ["cameo", "pickup", "rare"],
+  "entry": { "lanes": ["ground"] },
+  "exit":  { "lanes": ["ground"] },
+  "entities": [
+    { "offset_ms": 300,  "type": "essence", "lane": "air-low" },
+    { "offset_ms": 800,  "type": "bibo",    "lane": "ground" },
+    { "offset_ms": 1300, "type": "essence", "lane": "air-low" }
+  ]
+}
