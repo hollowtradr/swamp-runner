@@ -96,7 +96,10 @@ export async function startGame(
 
   // Load PB ghost from localStorage
   _state.pbGhostTrack = loadPBGhost(_state.seed, mode)
-  const ghostPref = localStorage.getItem('swamp_runner:show_ghost') !== 'false'
+  // Default OFF: casual runs use a fresh random seed each time, so a saved
+  // ghost almost never matches the current course and is mostly distraction.
+  // Settings lets PB-chasers opt in.
+  const ghostPref = localStorage.getItem('swamp_runner:show_ghost') === 'true'
   _state.showGhost = _state.pbGhostTrack !== null && ghostPref
 
   // Initialize replay

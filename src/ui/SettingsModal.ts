@@ -2,7 +2,7 @@
  * src/ui/SettingsModal.ts — in-game settings overlay
  *
  * Local-only preferences stored in localStorage. Currently:
- *   - Show PB ghost (default ON; only visible after first run sets a PB)
+ *   - Show PB ghost (default OFF; runs use fresh seeds so ghost rarely matches)
  *
  * Future toggles (haptics, music, contrast) drop in here.
  */
@@ -14,7 +14,7 @@ let _overlay: HTMLElement | null = null
 export function showSettingsModal(): void {
   _overlay?.remove()
 
-  const showGhost = localStorage.getItem(LS_SHOW_GHOST) !== 'false'
+  const showGhost = localStorage.getItem(LS_SHOW_GHOST) === 'true'
 
   _overlay = document.createElement('div')
   _overlay.className = 'settings-overlay'
@@ -29,7 +29,7 @@ export function showSettingsModal(): void {
         <label class="settings-row">
           <div class="settings-row-label">
             <span class="settings-row-title">Show PB Ghost</span>
-            <span class="settings-row-sub">Cyan silhouette of your best run on this seed. Appears after your first scored run.</span>
+            <span class="settings-row-sub">Race a cyan silhouette of your best run. Only shows when the random seed happens to match a stored PB — off by default since seeds change each run.</span>
           </div>
           <input type="checkbox" id="setting-ghost" class="settings-toggle" ${showGhost ? 'checked' : ''} />
         </label>
