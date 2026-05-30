@@ -340,7 +340,21 @@ function renderFinalResult(
 
   document.getElementById('result-back')?.addEventListener('click', () => {
     sdk.postMessageBridge('GAME_COMPLETE', { entry_id: _entryId })
-    window.Telegram?.WebApp?.close?.()
+    // Ask the parent shell (mini-app) to navigate back to /arcade.
+    // Shell listens for SG_EXIT_TO_ARCADE and runs router.push('/arcade').
+    // Fallback: history.back() if parent doesn't respond (e.g. opened directly).
+    try {
+      window.parent?.postMessage({ type: 'SG_EXIT_TO_ARCADE' }, '*')
+    } catch { /* parent inaccessible */ }
+    // Give the parent ~250ms to handle the nav; if we're still here, go back.
+    setTimeout(() => {
+      if (window.parent !== window) {
+        // Still in iframe → parent didn't navigate us; close as final fallback.
+        window.Telegram?.WebApp?.close?.()
+      } else {
+        history.back()
+      }
+    }, 300)
   })
 
   document.getElementById('result-lb')?.addEventListener('click', () => {
