@@ -1,17 +1,22 @@
 {
-  "_todo": "STUB: needs authoring. Intent: vine + sinking log immediately after vine drop zone (must jump vine, land on sinking log, immediately jump off). Dense timing.",
   "id": "sw_vine_sinking_log_01",
   "game": "swamp_runner",
   "difficulty": 8,
   "duration_ms": 3600,
-  "tags": ["vine", "platform", "sinking", "hard", "TODO"],
+  "tags": ["vine", "platform", "sinking", "dense-timing"],
+  "_design": "Dense vertical timing chain. Jump cleanly under vine, land precisely on sinking log mid-air-low (vine is at the height you'd reach if you held jump), immediately jump again before sink. Slime at exit punishes a player who held the jump or stalled on the log. Two essence: one between vine and log (jump arc apex), one on the log itself (only if you landed correctly).",
   "entry": { "lanes": ["ground"] },
   "exit":  { "lanes": ["ground"] },
   "entities": [
-    { "offset_ms": 200,  "type": "vine",        "lane": "air-low" },
-    { "offset_ms": 700,  "type": "sinking_log", "lane": "platform",
-      "params": { "width": 80 } },
-    { "offset_ms": 1100, "type": "essence",     "lane": "air-low" },
-    { "offset_ms": 1800, "type": "slime",       "lane": "ground" }
+    { "offset_ms": 300,  "type": "vine",        "lane": "air-low",
+      "params": { "comment": "short-jump under; long-hold = vine death" } },
+    { "offset_ms": 500,  "type": "essence",     "lane": "air-low",
+      "params": { "comment": "between vine and log — picked up on the arc" } },
+    { "offset_ms": 900,  "type": "sinking_log", "lane": "platform",
+      "params": { "width": 80, "comment": "land here from short-jump arc; immediately re-jump" } },
+    { "offset_ms": 1200, "type": "essence",     "lane": "air-low",
+      "params": { "comment": "on-log essence — confirms correct landing" } },
+    { "offset_ms": 2200, "type": "slime",       "lane": "ground",
+      "params": { "comment": "punishes hesitation on the log" } }
   ]
 }

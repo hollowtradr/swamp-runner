@@ -1,17 +1,24 @@
 {
-  "_todo": "STUB: needs authoring. Intent: 3 slimes tight + vine overhead so every jump is constrained by both obstacles. Very hard read-ahead challenge.",
   "id": "sw_triple_slime_vine_overhead_01",
   "game": "swamp_runner",
   "difficulty": 9,
   "duration_ms": 3200,
-  "tags": ["jump", "vine", "tight", "expert", "TODO"],
+  "tags": ["jump", "vine", "tight", "expert", "read-ahead"],
+  "_design": "Three slimes in tight succession with a vine canopy overhead constraining max jump height for the middle slime. Slime 1 = free short-jump. Slime 2 = must short-jump (vine overhead crushes a hold-jump). Slime 3 = free, recovery. Essence between 2 and 3 is mid-air-low, only catchable if your slime-2 jump was a clean short-hop arc. Tests read-ahead and jump-arc discipline.",
   "entry": { "lanes": ["ground"] },
   "exit":  { "lanes": ["ground"] },
   "entities": [
-    { "offset_ms": 200,  "type": "slime",   "lane": "ground" },
-    { "offset_ms": 600,  "type": "vine",    "lane": "air-low" },
-    { "offset_ms": 1100, "type": "slime",   "lane": "ground" },
-    { "offset_ms": 1700, "type": "slime",   "lane": "ground" },
-    { "offset_ms": 900,  "type": "essence", "lane": "ground" }
+    { "offset_ms": 300,  "type": "slime",   "lane": "ground",
+      "params": { "comment": "slime 1: opener — any jump works" } },
+    { "offset_ms": 1100, "type": "vine",    "lane": "air-low",
+      "params": { "comment": "vine constrains the middle jump — short-jump only" } },
+    { "offset_ms": 1200, "type": "slime",   "lane": "ground",
+      "params": { "comment": "slime 2: must clear under vine — short-jump or die" } },
+    { "offset_ms": 1500, "type": "essence", "lane": "air-low",
+      "params": { "comment": "reward catchable only on a clean short-jump apex" } },
+    { "offset_ms": 2100, "type": "slime",   "lane": "ground",
+      "params": { "comment": "slime 3: recovery — back to free jump" } },
+    { "offset_ms": 2700, "type": "essence", "lane": "ground",
+      "params": { "comment": "landing reward — confirms full clear" } }
   ]
 }

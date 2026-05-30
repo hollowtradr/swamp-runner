@@ -1,14 +1,19 @@
 {
-  "_todo": "STUB: needs authoring. Intent: low slime + overhead vine gap (player must short-jump). Memorable: ⌒ overhead arch over a jump.",
   "id": "sw_low_vine_arch_01",
   "game": "swamp_runner",
   "difficulty": 3,
   "duration_ms": 2400,
-  "tags": ["jump", "vine", "TODO"],
+  "tags": ["jump", "vine", "arch", "timing"],
+  "_design": "Memorable shape ⌒: low-vine arch overhead with a slime to jump under it. Safe line is short-jump (don't hold) so player ducks under the vine and clears the slime in one motion. Holding jump catches vine = death. Essence at apex of safe arc teaches the rhythm.",
   "entry": { "lanes": ["ground"] },
   "exit":  { "lanes": ["ground"] },
   "entities": [
-    { "offset_ms": 400, "type": "vine",  "lane": "air-low" },
-    { "offset_ms": 200, "type": "slime", "lane": "ground" }
+    { "offset_ms": 600,  "type": "slime",   "lane": "ground" },
+    { "offset_ms": 800,  "type": "vine",    "lane": "air-low",
+      "params": { "comment": "arch peak — short-jump only; tap-don't-hold" } },
+    { "offset_ms": 700,  "type": "essence", "lane": "air-low",
+      "params": { "comment": "rewards correct short-jump arc apex" } },
+    { "offset_ms": 1800, "type": "essence", "lane": "ground",
+      "params": { "comment": "recovery reward; teaches 'you landed it'" } }
   ]
 }

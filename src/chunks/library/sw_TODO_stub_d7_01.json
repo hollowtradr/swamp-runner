@@ -1,16 +1,20 @@
 {
-  "_todo": "STUB: needs authoring. Intent: sinking log + slime right after (must jump off log before it sinks AND clear slime). Teach: sinking log exit timing.",
   "id": "sw_sinking_log_into_slime_01",
   "game": "swamp_runner",
   "difficulty": 7,
   "duration_ms": 3200,
-  "tags": ["platform", "sinking", "jump", "TODO"],
+  "tags": ["platform", "sinking", "jump", "exit-timing"],
+  "_design": "Teaches sinking-log exit timing. Player MUST land on the sinking log (it's the only way over the slime that comes after — slime is positioned exactly where the log would have been if it hadn't sunk). Late = sink into slime double-death. Holocron at apex of the off-log jump rewards perfect timing.",
   "entry": { "lanes": ["ground"] },
   "exit":  { "lanes": ["ground"] },
   "entities": [
     { "offset_ms": 300,  "type": "sinking_log", "lane": "platform",
-      "params": { "width": 90 } },
-    { "offset_ms": 1000, "type": "slime",       "lane": "ground" },
-    { "offset_ms": 700,  "type": "essence",     "lane": "air-low" }
+      "params": { "width": 90, "comment": "land here, then jump within ~600ms or sink" } },
+    { "offset_ms": 800,  "type": "essence",     "lane": "air-low",
+      "params": { "comment": "on-log essence — pickup during the brief stand" } },
+    { "offset_ms": 1500, "type": "holocron",    "lane": "air-high",
+      "params": { "comment": "max-line: only catchable from double-jump off sinking log apex" } },
+    { "offset_ms": 2000, "type": "slime",       "lane": "ground",
+      "params": { "comment": "punishes late exit from sinking log" } }
   ]
 }
