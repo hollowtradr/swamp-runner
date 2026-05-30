@@ -30,6 +30,7 @@ import {
 let _el: HTMLElement | null = null
 let _entryId = ''
 let _startTime = 0
+let _lastScore = 0   // YODA-375: cached for share card
 
 /** Tracks whether the player has already used a revive this run (resets per run). */
 let _hasRevived = false
@@ -311,6 +312,9 @@ function renderFinalResult(
           ${sdk.getPaidPlaysRemaining() > 0 ? renderExtraPlayPill(sdk.getPaidPlaysRemaining()) : ''}
         </div>
 
+        <!-- YODA-375: share button injected here after result data loads -->
+        <div id="result-share-area"></div>
+
         ${SHOW_COSMETIC_SHELF ? renderCosmeticShelf(tier) : ''}
 
         <div class="result-actions">
@@ -520,6 +524,7 @@ async function postGameResult(
   score: number,
   outcome: 'win' | 'loss' | 'draw',
 ): Promise<void> {
+  _lastScore = score  // YODA-375: cache for share card
   const durationSecs = Math.round((performance.now() - _startTime) / 1000)
 
   /**
@@ -606,6 +611,28 @@ function renderResultData(result: sdk.SDKResponse<sdk.ResultData>): void {
 
   tgHaptic('selection')
   void trophyEl  // trophy fires on submit, not here
+
+  // YODA-375: inject Share button for personal bests or top-3 runs
+  const shareArea = document.getElementById('result-share-area')
+  if (shareArea && (data.would_improve_best || (data.this_run_rank != null && data.this_run_rank <= 3))) {
+    shareArea.innerHTML = `
+      <button class="btn btn-ghost swamp-btn-ghost result-share-btn" id="result-share-story">
+        &#128228; Share Score
+      </button>
+    `
+    document.getElementById('result-share-story')?.addEventListener('click', () => {
+      void sdk.shareToStory({
+        template: 'high_score',
+        templateData: {
+          score: _lastScore,
+          rank:  data.this_run_rank ?? undefined,
+          player_name: 'Champion',
+          game_name:   'Swamp Runner',
+        },
+        deeplink: 'https://t.me/stickergalaxybot/play?startapp=swamp_runner',
+      })
+    })
+  }
 }
 
 function renderSubmittedState(resp: sdk.SDKResponse<sdk.SubmitData>): void {
