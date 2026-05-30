@@ -74,6 +74,18 @@ async function main(): Promise<void> {
   }
 
   hideLoading()
+
+  // YODA-374: schedule a reactivation DM for tomorrow's play refresh.
+  // Idempotent per day — calling at every session start is intentional.
+  // Failure MUST NOT block gameplay.
+  sdk.scheduleReactivation({ trigger: 'daily_reset' }).then((res) => {
+    if (!res.success) {
+      console.debug('[swamp-runner] scheduleReactivation skipped:', res.error)
+    }
+  }).catch((err) => {
+    console.debug('[swamp-runner] scheduleReactivation threw (non-fatal):', err)
+  })
+
   showTitleScreen(sessionResult.data)
 }
 
