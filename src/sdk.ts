@@ -178,11 +178,21 @@ export interface TonPaymentBlock {
   valid_until: number
 }
 
+export interface YodaPaymentBlock {
+  jetton_master: string
+  to_owner: string
+  amount_nano: string
+  comment: string
+  valid_until: number
+  forward_ton_amount: string
+}
+
 export interface PurchaseData {
   purchase_id: string
   status: 'pending' | 'awaiting_payment' | 'paid_pending' | 'paid' | 'expired' | 'failed'
   payment_url: string | null
   ton_payment: TonPaymentBlock | null
+  yoda_payment: YodaPaymentBlock | null
   studio_credit_ton: number
   message: string
 }
@@ -603,7 +613,53 @@ export async function requestPurchase(
     }
   }
 
-  // Stars and YODA: legacy path (stub URL) until their dedicated flows ship.
+  // YODA jetton payment flow.
+  if (currency === 'YODA') {
+    // 1. Create the purchase row — backend returns yoda_payment block.
+    const created = await purchase(itemType, itemId, price, currency, description)
+    if (!created.success) return created
+    const yp = created.data.yoda_payment
+    if (!yp) {
+      return { success: false, error: 'no_yoda_payment_block' }
+    }
+
+    // 2. Ask the platform shell to build the jetton transfer and sign it.
+    //    Shell-owned because only the TWA top-level frame has working
+    //    TonConnect twaReturnUrl context.
+    const signResult = await walletRpc<{
+      success: boolean
+      purchase_id?: string
+      payer_address?: string
+      status?: string
+      error?: string
+      message?: string
+    }>('requestYodaPayment', {
+      purchase_id: created.data.purchase_id,
+      yoda_payment: yp,
+    }).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg === 'shell_required' ? 'shell_unavailable' : msg }
+    })
+
+    if (!signResult.success) {
+      return {
+        success: false,
+        error: signResult.error ?? 'sign_failed',
+      }
+    }
+
+    // 3. Optimistic: return the purchase row updated to paid_pending.
+    //    YODA confirmation worker will flip to 'paid' within ~10-15s.
+    return {
+      success: true,
+      data: {
+        ...created.data,
+        status: 'paid_pending',
+      },
+    }
+  }
+
+  // Stars: legacy path (stub URL).
   return purchase(itemType, itemId, price, currency, description)
 }
 

@@ -373,6 +373,34 @@ function renderFinalResult(
     }
   })
 
+  // YODA extra-play purchase pill
+  document.getElementById('extra-play-purchase-yoda')?.addEventListener('click', async () => {
+    const btn = document.getElementById('extra-play-purchase-yoda') as HTMLButtonElement | null
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening…' }
+    const resp = await sdk.requestPurchase(
+      'extra_play',
+      'extra_play',
+      // 50 YODA × 1e9 nano-units (YODA has 9 decimals)
+      50_000_000_000,
+      'Extra play (burned)',
+      'YODA',
+    )
+    if (resp.success && resp.data?.purchase_id) {
+      stashPendingExtraPlay(resp.data.purchase_id)
+      sdk.decrementPaidPlaysRemaining(1)
+      if (btn) {
+        btn.disabled = true
+        btn.innerHTML = `<picture style="display:inline-block;vertical-align:middle;margin-right:6px;"><source srcset="/sprites/v4/yoda_coffee.webp" type="image/webp" /><img src="/sprites/v4/yoda_coffee.gif" alt="" width="32" height="32" /></picture> 50 $YODA burned — Run Again!`
+        btn.classList.add('btn-success')
+      }
+    } else {
+      if (btn) {
+        btn.disabled = false
+        btn.textContent = 'Pay 50 $YODA — burned forever 🔥'
+      }
+    }
+  })
+
   // Cosmetic shelf buy buttons
   const shelfBuyBtn = document.getElementById('cosmetic-shelf-buy')
   if (shelfBuyBtn) {
@@ -409,6 +437,11 @@ function renderExtraPlayPill(paidLeft: number): string {
     <div class="extra-play-pill" id="extra-play-pill">
       <button class="btn btn-ghost extra-play-btn" id="extra-play-purchase">
         ⚡ Buy extra play · 0.3 TON
+        <span class="extra-play-sub">${paidLeft} of your daily ceiling left to buy</span>
+      </button>
+      <button class="btn btn-secondary extra-play-btn" id="extra-play-purchase-yoda" style="margin-top:8px;">
+        <picture style="display:inline-block;vertical-align:middle;margin-right:6px;"><source srcset="/sprites/v4/yoda_coffee.webp" type="image/webp" /><img src="/sprites/v4/yoda_coffee.gif" alt="" width="24" height="24" /></picture>
+        Pay 50 $YODA — burned forever 🔥
         <span class="extra-play-sub">${paidLeft} of your daily ceiling left to buy</span>
       </button>
     </div>
