@@ -411,11 +411,11 @@ export class SwampScene extends Phaser.Scene {
       // MID TREES overlay — trunks span ~80% of frame height. Pull DOWN
       // by trunkBuryY so roots/bases disappear behind earth fill + moss
       // foreground (HK/Ori: trees emerge FROM the ground, not stand ON it).
-      // 0.40 strikes the balance: roots/bases buried behind earth+moss,
-      // trunk tops sit comfortably below the soft top shade.
+      // 0.55: bury enough that trunk tops sit BEHIND the screen-top
+      // shade band, not poking up into pure-black sky at the edges.
       const PH = PLAYER_HEIGHT * 1.4
       const visualFeetY = this.gs.groundY - Math.round(PH * 0.35)
-      const trunkBuryY = Math.round(PH * 0.40)
+      const trunkBuryY = Math.round(PH * 0.55)
       const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
       this.plateMid = this.add.tileSprite(0, trunkBuryY, w, h, 'plate6_mid')
         .setOrigin(0, 0)
@@ -433,22 +433,24 @@ export class SwampScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setDepth(0.95)
 
-      // TOP CANOPY SHADE — soft overhead darkness, NOT a curtain.
-      // Sits in front of background plates (canopy 0.0, mid 0.5) but behind
-      // gameplay sprites. Implemented as many thin horizontal strips with
-      // alpha decreasing along an ease curve so there is no visible seam
-      // and no flat "band rectangle" lower edge.
+      // TOP CANOPY SHADE — soft overhead darkness, occludes trunk tops
+      // and any background bleed at the edges. Built from many thin
+      // horizontal strips along an ease curve so there is no visible seam
+      // or hard rectangle edge at the bottom of the band.
+      //
+      // Depth 1.4: in front of canopy plate (0.0), mid-trees (0.5),
+      // earth (0.95); behind obstacles (1.5+), moss (3.7), player (4.0).
       const VIGNETTE_DEPTH = 1.4
-      const shadeH = Math.round(h * 0.18)   // total reach (~18% of viewport)
-      const peakAlpha = 0.78                 // darkest at very top
-      const strips = 36
+      const shadeH = Math.round(h * 0.22)   // total reach (~22% of viewport)
+      const peakAlpha = 0.95                 // darkest at very top
+      const strips = 48
       const stripH = Math.max(1, Math.ceil(shadeH / strips))
       for (let i = 0; i < strips; i++) {
-        // ease-out cubic: starts strong, fades smoothly to 0
+        // ease-out: stays dark in the top quarter, fades smoothly to 0.
         const t = i / (strips - 1)
-        const a = peakAlpha * Math.pow(1 - t, 2.2)
+        const a = peakAlpha * Math.pow(1 - t, 1.6)
         if (a <= 0.01) break
-        this.add.rectangle(0, i * stripH, w, stripH + 1, 0x060d08, a)
+        this.add.rectangle(0, i * stripH, w, stripH + 1, 0x040805, a)
           .setOrigin(0, 0)
           .setDepth(VIGNETTE_DEPTH)
       }
