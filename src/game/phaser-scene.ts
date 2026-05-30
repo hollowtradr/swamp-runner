@@ -24,6 +24,8 @@ import {
 } from './state.js'
 import { updatePhysics, startJump, releaseJump } from './physics.js'
 import { tgHaptic } from '../tg.js'
+import { FixedStepAccumulator, TICK_DT, recordInput } from 'sticker-galaxy-sdk-core'
+import type { Replay } from 'sticker-galaxy-sdk-core'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ type GameEndCallback = (score: number, outcome: 'win' | 'loss') => void
 interface SceneInitData {
   state: GameState
   onEnd: GameEndCallback
+  replay: Replay
 }
 
 // ── Biome colour palettes ─────────────────────────────────────────────────────
@@ -66,6 +69,13 @@ export class SwampScene extends Phaser.Scene {
   private gs!: GameState
   // @ts-ignore — held for future restart-on-game-over flows
   private onEndCb!: GameEndCallback
+
+  // Phase 1 esport
+  private stepAccumulator = new FixedStepAccumulator()
+  private activeReplay!: Replay
+  private ghostImg: Phaser.GameObjects.Image | null = null
+  private ghostRim: Phaser.GameObjects.Image | null = null
+  private seedDebugText: Phaser.GameObjects.Text | null = null
 
   // Graphics layers (cleared + redrawn every frame)
   private bgGfx!: Phaser.GameObjects.Graphics
@@ -150,9 +160,11 @@ export class SwampScene extends Phaser.Scene {
   init(data: SceneInitData): void {
     this.gs = data.state
     this.onEndCb = data.onEnd
+    this.activeReplay = data.replay
     this.gameEndFired = false
     this.biomeTint = 0; this.biomeTarget = 0; this.lastBiomeZone = 0
     this.prevAnim = 'running'; this.bobOffset = 0
+    this.stepAccumulator.reset()
   }
 
   /**
@@ -330,9 +342,16 @@ export class SwampScene extends Phaser.Scene {
       try { (ptr.event as PointerEvent).preventDefault() } catch (_) {}
       startJump(this.gs)
       tgHaptic('impact_light')
+      // Record input for replay
+      recordInput(this.activeReplay, { tick: this.gs.tick, type: 'jump_start' })
     })
-    this.input.on('pointerup',  () => releaseJump(this.gs))
-    this.input.on('pointerout', () => releaseJump(this.gs))
+    this.input.on('pointerup', () => {
+      releaseJump(this.gs)
+      recordInput(this.activeReplay, { tick: this.gs.tick, type: 'jump_release' })
+    })
+    this.input.on('pointerout', () => {
+      releaseJump(this.gs)
+    })
 
     // ── Resize ───────────────────────────────────────────────────────────
     this.scale.on('resize', (size: Phaser.Structs.Size) => {
@@ -494,11 +513,37 @@ export class SwampScene extends Phaser.Scene {
       })
     }
 
+    // Ghost sprite — 50% alpha tinted cyan replica of the player sprite.
+    // Depth 3.9 = just below the player (4.0) so the player always reads on top.
+    if (this.textures.exists('yoda_idle')) {
+      this.ghostImg = this.add.image(0, 0, 'yoda_idle')
+        .setOrigin(0, 0)
+        .setDisplaySize(PLAYER_WIDTH * 1.4, PLAYER_HEIGHT * 1.4)
+        .setDepth(3.9)
+        .setAlpha(0.5)
+        .setTint(0x00e8ff)  // cyan ghost tint
+        .setVisible(false)
+      this.ghostRim = this.add.image(0, 0, 'yoda_idle')
+        .setOrigin(0, 0)
+        .setDisplaySize(PLAYER_WIDTH * 1.4, PLAYER_HEIGHT * 1.4)
+        .setDepth(3.91)
+        .setAlpha(0.12)
+        .setTint(0x00ffff)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setVisible(false)
+    }
+
+    // Seed debug text — visible in daily mode and when ?seed= param is set
+    this.seedDebugText = this.add.text(w - 8, h - 8, '', {
+      fontSize: '9px',
+      fontFamily: 'monospace',
+      color: '#88ff88',
+    }).setDepth(6).setOrigin(1, 1).setAlpha(0.6).setVisible(false)
+
     this.startBobTween()
   }
 
   update(_time: number, delta: number): void {
-    const dt = Math.min(delta / 1000, 0.05)
     const { width: w, height: h } = this.scale
 
     // Sync groundY
@@ -507,29 +552,44 @@ export class SwampScene extends Phaser.Scene {
 
     // Track pre-physics pickup state for collection feedback
     const preCollected = this.gs.pickupsCollected
-    const preEssence = this.gs.player.x // capture player x for spawn anchor
+    const prePlayerX = this.gs.player.x  // capture player x for burst anchor
 
-    // Physics
-    updatePhysics(this.gs, dt, w, h)
+    // ── Fixed-step physics (Phase 1 esport) ────────────────────────────────
+    // Drive physics at exactly 60 ticks/sec regardless of display frame rate.
+    // Each tick: updatePhysics (dt=1/60), increment tick counter, ghost sample.
+    const frameDt = delta / 1000  // real elapsed seconds for rendering/UI
+    this.stepAccumulator.update(delta, () => {
+      updatePhysics(this.gs, TICK_DT, w, h)
+      this.gs.tick++
+
+      // Ghost sample every 6 ticks (~10Hz)
+      if (this.gs.tick % 6 === 0 && this.gs.phase === 'playing') {
+        this.gs.ghostSamples.push({
+          tick: this.gs.tick,
+          x: this.gs.player.x,
+          y: this.gs.player.screenY,
+        })
+      }
+    })
 
     // Pickup collection feedback (mote/holocron/bibo)
     if (this.gs.pickupsCollected > preCollected) {
-      const delta = this.gs.pickupsCollected - preCollected
+      const collDelta = this.gs.pickupsCollected - preCollected
       // Find the most-recently-collected pickup near the player to anchor the burst
       const player = this.gs.player
       let burstX = player.x, burstY = player.screenY + 20
       for (const pk of this.gs.pickups) {
-        if (pk.collected && Math.abs(pk.x - preEssence) < 80) {
+        if (pk.collected && Math.abs(pk.x - prePlayerX) < 80) {
           burstX = pk.x + 7; burstY = pk.y + 7
           break
         }
       }
-      this.spawnPickupBurst(burstX, burstY, delta)
+      this.spawnPickupBurst(burstX, burstY, collDelta)
     }
 
-    // Run cycle timer
+    // Run cycle timer (rendering-only: use real frame delta)
     if (this.gs.player.anim === 'running') {
-      this.runTimer += dt
+      this.runTimer += frameDt
       if (this.runTimer > 0.18) this.runTimer = 0
     }
 
@@ -539,7 +599,7 @@ export class SwampScene extends Phaser.Scene {
       this.lastBiomeZone = zone
       this.biomeTarget = zone % 2 === 1 ? 1 : 0
     }
-    this.biomeTint += (this.biomeTarget - this.biomeTint) * Math.min(dt * 0.7, 1)
+    this.biomeTint += (this.biomeTarget - this.biomeTint) * Math.min(frameDt * 0.7, 1)
 
     // Player anim transitions
     this.syncPlayerAnim()
@@ -565,9 +625,11 @@ export class SwampScene extends Phaser.Scene {
     }
     this.renderEntities(w, h)
     this.renderPlayer()
+    this.renderGhost()
     if (!this.hasV5Plates && !this.hasV6Plates) this.renderForegroundFoliage(w, h)
     this.renderHUD(w, h)
     this.updateHUDText(w, h)
+    this.updateSeedDebugText(w, h)
 
     // Game end
     if (this.gs.phase === 'ended' && !this.gameEndFired) {
@@ -1521,7 +1583,67 @@ export class SwampScene extends Phaser.Scene {
     }
   }
 
-  // ── HUD ───────────────────────────────────────────────────────────────────
+  // ── Ghost Run (Phase 1 esport) ────────────────────────────────────────────────
+
+  private renderGhost(): void {
+    const gs = this.gs
+    if (!gs.showGhost || !gs.pbGhostTrack || gs.phase !== 'playing') {
+      this.ghostImg?.setVisible(false)
+      this.ghostRim?.setVisible(false)
+      return
+    }
+
+    const pos = gs.pbGhostTrack.sampleAt(gs.tick)
+    if (!pos) {
+      this.ghostImg?.setVisible(false)
+      this.ghostRim?.setVisible(false)
+      return
+    }
+
+    const PW = PLAYER_WIDTH * 1.4
+    const PH = PLAYER_HEIGHT * 1.4
+    const ghostPX = pos.x - PW / 2
+    // Apply same Y offset as player rendering
+    const groundOffset = PH * 0.15
+    const ghostPY = pos.y - (PH - PLAYER_HEIGHT) + groundOffset
+
+    if (this.ghostImg) {
+      // Match current player texture so the ghost mirrors the player's frame
+      const currentTex = this.playerImg?.texture?.key ?? 'yoda_idle'
+      if (this.textures.exists(currentTex) && this.ghostImg.texture.key !== currentTex) {
+        this.ghostImg.setTexture(currentTex)
+      }
+      this.ghostImg
+        .setVisible(true)
+        .setPosition(ghostPX, ghostPY)
+        .setDisplaySize(PW, PH)
+    }
+    if (this.ghostRim) {
+      const currentTex = this.playerImg?.texture?.key ?? 'yoda_idle'
+      if (this.textures.exists(currentTex) && this.ghostRim.texture.key !== currentTex) {
+        this.ghostRim.setTexture(currentTex)
+      }
+      this.ghostRim
+        .setVisible(true)
+        .setPosition(ghostPX, ghostPY)
+        .setDisplaySize(PW, PH)
+    }
+  }
+
+  private updateSeedDebugText(_w: number, _h: number): void {
+    if (!this.seedDebugText) return
+    const gs = this.gs
+    const showSeed = gs.mode === 'daily' || new URLSearchParams(window.location.search).has('seed')
+    if (showSeed && gs.phase === 'playing') {
+      this.seedDebugText
+        .setText(`${gs.mode} seed:${gs.seed}`)
+        .setVisible(true)
+    } else {
+      this.seedDebugText.setVisible(false)
+    }
+  }
+
+// ── HUD ───────────────────────────────────────────────────────────────────
 
   private renderHUD(w: number, h: number): void {
     const g = this.hudGfx; g.clear()

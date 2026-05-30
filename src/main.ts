@@ -17,7 +17,7 @@
 import './style.css'
 import * as sdk from './sdk.js'
 import { tgReady, tgBackButton } from './tg.js'
-import { startGame, stopGame } from './game/index.js'
+import { startGame, stopGame, type GameStartOptions } from './game/index.js'
 import { initHUD, showHUD, hideHUD, updateHUD } from './ui/HUD.js'
 import { mountTitlePerksCard } from './ui/TitlePerksCard.js'
 import { mountSettingsLink } from './ui/SettingsLink.js'
@@ -145,6 +145,9 @@ function showTitleScreen(session: SessionData | null): void {
       <button id="play-btn" class="btn swamp-play-btn">
         ▶ Begin Training
       </button>
+      <button id="daily-btn" class="btn btn-ghost swamp-ghost-btn" style="background:rgba(0,200,255,0.08);border-color:rgba(0,200,255,0.4);margin-top:6px;">
+        📅 Daily Challenge
+      </button>
       <button id="lb-btn" class="btn btn-ghost swamp-ghost-btn">
         🏆 Leaderboard
       </button>
@@ -169,6 +172,14 @@ function showTitleScreen(session: SessionData | null): void {
     }, 300)
   })
 
+  document.getElementById('daily-btn')?.addEventListener('click', () => {
+    titleEl.classList.add('fade-out')
+    setTimeout(() => {
+      titleEl.remove()
+      beginGame(session, { mode: 'daily' })
+    }, 300)
+  })
+
   document.getElementById('lb-btn')?.addEventListener('click', () => {
     import('./ui/Leaderboard.js').then(({ showLeaderboard }) => showLeaderboard())
   })
@@ -178,9 +189,11 @@ function showTitleScreen(session: SessionData | null): void {
 
 let _midiBalance: number | null = null
 let _currentSession: SessionData | null = null
+let _gameOpts: GameStartOptions = {}
 
-async function beginGame(session: SessionData | null): Promise<void> {
+async function beginGame(session: SessionData | null, opts: GameStartOptions = {}): Promise<void> {
   _currentSession = session
+  _gameOpts = opts
   _midiBalance = session?.midi_balance ?? null
 
   // Post entry — free-to-play
@@ -198,7 +211,7 @@ async function beginGame(session: SessionData | null): Promise<void> {
   setEntryContext(entryId, gameStartTime)
 
   showHUD()
-  await startGame(onGameEnd)
+  await startGame(onGameEnd, _gameOpts)
 
   // HUD polling (canvas renders the score; DOM HUD shows midi balance).
   // Wrapped in a restartable function so revive can re-arm it after the
@@ -223,9 +236,9 @@ function onGameEnd(score: number, outcome: 'win' | 'loss'): void {
     score,
     outcome,
     () => {
-      // Play again → new entry (full restart).
+      // Play again → new entry (full restart). Preserve mode (daily stays daily).
       hideResultScreen()
-      beginGame(_currentSession)
+      beginGame(_currentSession, _gameOpts)
     },
     () => {
       // Revive → resume the same run with player reset + safety bubble.

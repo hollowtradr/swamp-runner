@@ -5,6 +5,10 @@
  * Physics and spawn logic mutate this object directly each frame.
  */
 
+import { SeededRNG, type Mode, type InputEvent, type GhostSample, GhostTrack } from 'sticker-galaxy-sdk-core'
+export { SeededRNG, GhostTrack }
+export type { Mode, InputEvent, GhostSample }
+
 // ── Entity types ─────────────────────────────────────────────────────────────
 
 export type PlayerAnim = 'running' | 'jumping' | 'hit' | 'dead'
@@ -110,6 +114,24 @@ export interface GameState {
 
   spawnTimer: number      // time since last obstacle/pickup spawn attempt
   idCounter: number       // monotonic ID for new entities
+
+  // ── Esport / determinism (Phase 1) ─────────────────────────────────────────
+  /** Seed used to initialize the RNG for this run. */
+  seed: number
+  /** Run mode. */
+  mode: Mode
+  /** Seeded PRNG — all spawn randomness goes through this. */
+  rng: SeededRNG
+  /** Physics tick counter. Incremented once per fixed step (1/60s). */
+  tick: number
+  /** Inputs recorded this run for the replay log. */
+  replayInputs: InputEvent[]
+  /** Ghost track samples recorded this run (every 6 ticks). */
+  ghostSamples: GhostSample[]
+  /** PB ghost track loaded from localStorage (null if none). */
+  pbGhostTrack: GhostTrack | null
+  /** Whether to render the ghost overlay. */
+  showGhost: boolean
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -148,7 +170,12 @@ export const GAME_OVER_QUOTES = [
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function createInitialState(canvasW: number, canvasH: number): GameState {
+/**
+ * Create a fresh GameState for a new run.
+ * @param seed  Seed for the run's PRNG (casual: crypto random, daily: derived).
+ * @param mode  Run mode.
+ */
+export function createInitialState(canvasW: number, canvasH: number, seed = 0, mode: Mode = 'casual'): GameState {
   const groundY = Math.round(canvasH * 0.74)
   const playerX = Math.round(canvasW * 0.18)
 
@@ -193,6 +220,16 @@ export function createInitialState(canvasW: number, canvasH: number): GameState 
     currentCombo: 0,
     spawnTimer: 0,
     idCounter: 1,
+
+    // Esport fields
+    seed,
+    mode,
+    rng: new SeededRNG(seed),
+    tick: 0,
+    replayInputs: [],
+    ghostSamples: [],
+    pbGhostTrack: null,
+    showGhost: true,
   }
 }
 

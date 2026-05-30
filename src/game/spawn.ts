@@ -1,8 +1,16 @@
 /**
  * src/game/spawn.ts — Obstacle, pickup, and platform spawner
  *
- * Called each frame when spawnTimer exceeds a threshold.
+ * Called each fixed-step tick when spawnTimer exceeds a threshold.
  * Difficulty scales with gameTime.
+ *
+ * Phase 1 esport: ALL randomness goes through state.rng (SeededRNG).
+ * Zero Math.random() in any spawn path — full determinism for given seed.
+ *
+ * TODO Phase 2: Replace probability-table spawner with chunk picker.
+ * Hook: maybeSpawn() is the single entry point — replace its body with
+ * a chunk-stream consumer. The rng and seed infrastructure is already in
+ * state and will be reused unchanged.
  */
 
 import {
@@ -72,24 +80,24 @@ function biboChance(_gameTime: number): number {
 // ── Main spawn function ───────────────────────────────────────────────────────
 
 export function maybeSpawn(state: GameState, canvasW: number): void {
-  const { gameTime } = state
+  const { gameTime, rng } = state
   const interval = spawnInterval(gameTime)
 
-  state.spawnTimer += 1 / 60  // called each frame, ~60fps
+  state.spawnTimer += 1 / 60  // called once per fixed step at 60Hz
   if (state.spawnTimer < interval) return
   state.spawnTimer = 0
 
   const spawnX = canvasW + 80  // off-screen right
 
   // --- Ground obstacles (slime) ---
-  if (Math.random() < groundObstacleChance(gameTime)) {
+  if (rng.next() < groundObstacleChance(gameTime)) {
     if (!hasObstacleWithin(state, 'slime', spawnX, 200)) {
       spawnSlime(state, spawnX)
     }
   }
 
   // --- Mynock ---
-  if (Math.random() < mynockChance(gameTime)) {
+  if (rng.next() < mynockChance(gameTime)) {
     const hasNearVine = hasObstacleWithin(state, 'vine', spawnX, 300)
     if (!hasNearVine) {
       spawnMynock(state, spawnX, state.groundY)
@@ -97,24 +105,24 @@ export function maybeSpawn(state: GameState, canvasW: number): void {
   }
 
   // --- Vine with shadow ---
-  if (Math.random() < vineChance(gameTime)) {
+  if (rng.next() < vineChance(gameTime)) {
     if (!hasObstacleWithin(state, 'vine', spawnX, 500)) {
       spawnVine(state, spawnX + 60, canvasW)  // slightly further right
     }
   }
 
   // --- Log platform ---
-  if (Math.random() < logChance(gameTime)) {
-    const sinking = Math.random() < sinkingLogChance(gameTime)
+  if (rng.next() < logChance(gameTime)) {
+    const sinking = rng.next() < sinkingLogChance(gameTime)
     spawnLog(state, spawnX + 120, state.groundY, sinking)
   }
 
   // --- Pickups (separate timer would be cleaner but this works) ---
-  if (Math.random() < biboChance(gameTime)) {
+  if (rng.next() < biboChance(gameTime)) {
     spawnPickup(state, spawnX + 30, state.groundY, 'bibo')
-  } else if (Math.random() < holocronChance(gameTime)) {
+  } else if (rng.next() < holocronChance(gameTime)) {
     spawnPickup(state, spawnX + 30, state.groundY, 'holocron')
-  } else if (Math.random() < essenceChance(gameTime)) {
+  } else if (rng.next() < essenceChance(gameTime)) {
     spawnPickup(state, spawnX, state.groundY, 'essence')
   }
 
@@ -125,7 +133,7 @@ export function maybeSpawn(state: GameState, canvasW: number): void {
 // ── Obstacle factories ────────────────────────────────────────────────────────
 
 function spawnSlime(state: GameState, x: number): void {
-  const w = 30 + Math.random() * 30
+  const w = 30 + state.rng.next() * 30
   const ob: Obstacle = {
     id: nextId(state),
     x,
@@ -143,10 +151,7 @@ function spawnSlime(state: GameState, x: number): void {
 
 function spawnMynock(state: GameState, x: number, groundY: number): void {
   // Mynocks fly at mid-height: player must be jumping (higher) or they pass below
-  // They fly at groundY - 90 to groundY - 160 (player body range when grounded is groundY-64 to groundY)
-  // So if mynock Y (top) is above groundY - PLAYER_HEIGHT, grounded player is hit
-  // Make mynocks fly at groundY - 80 to groundY - 140 — mid-air threat
-  const yTop = groundY - 70 - Math.random() * 60  // 70-130px above ground
+  const yTop = groundY - 70 - state.rng.next() * 60  // 70-130px above ground
   const ob: Obstacle = {
     id: nextId(state),
     x,
@@ -157,14 +162,14 @@ function spawnMynock(state: GameState, x: number, groundY: number): void {
     pairId: 0,
     dropCountdown: 0,
     dropped: false,
-    vy: (Math.random() - 0.5) * 40,  // slight up-down wobble
+    vy: (state.rng.next() - 0.5) * 40,  // slight up-down wobble
   }
   state.obstacles.push(ob)
 }
 
 function spawnVine(state: GameState, x: number, _canvasW: number): void {
   const pairId = nextId(state)
-  const vineH = 40 + Math.random() * 80  // how far it drops
+  const vineH = 40 + state.rng.next() * 80  // how far it drops
 
   // Shadow first (appears at ground level)
   const shadow: Obstacle = {
@@ -205,9 +210,9 @@ function spawnLog(
   groundY: number,
   sinking: boolean,
 ): void {
-  const w = 90 + Math.random() * 60
+  const w = 90 + state.rng.next() * 60
   // Logs float 40-70px above ground level
-  const yAbove = 40 + Math.random() * 30
+  const yAbove = 40 + state.rng.next() * 30
   const logTopY = groundY - yAbove - 16  // top surface Y
 
   const pl: Platform = {
@@ -304,9 +309,9 @@ function spawnPickup(
 ): void {
   let y: number
   if (type === 'essence') {
-    y = groundY - 40 - Math.random() * 80
+    y = groundY - 40 - state.rng.next() * 80
   } else if (type === 'holocron') {
-    y = groundY - 60 - Math.random() * 60
+    y = groundY - 60 - state.rng.next() * 60
   } else {
     // Bibo swims — show near ground level, slightly below
     y = groundY - 20
@@ -318,7 +323,7 @@ function spawnPickup(
     y,
     type,
     collected: false,
-    glowPhase: Math.random() * Math.PI * 2,
+    glowPhase: state.rng.next() * Math.PI * 2,
   }
   state.pickups.push(pk)
 }
