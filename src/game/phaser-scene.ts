@@ -399,29 +399,41 @@ export class SwampScene extends Phaser.Scene {
       this.plateSky.tileScaleY = h / skySrc.height
       this.plateSky.tileScaleX = h / skySrc.height
 
-      // CANOPY overlay — hanging vines at top of frame. Fills screen so the
-      // vines sit in the upper third where they were painted.
-      const canopySrc6 = this.textures.get('plate6_canopy').getSourceImage() as HTMLImageElement
-      this.plateCanopy = this.add.tileSprite(0, 0, w, h, 'plate6_canopy')
-        .setOrigin(0, 0)
-        .setDepth(0.0)
-      this.plateCanopy.tileScaleY = h / canopySrc6.height
-      this.plateCanopy.tileScaleX = h / canopySrc6.height
+      // Depth layering (back → front):
+      //   sky          -1.0
+      //   mid-trees     0.3   (trunks rise from ground, painted backdrop)
+      //   canopy        0.7   (hanging vines drape OVER the trunk tops)
+      //   earth fill    0.95
+      //   obstacles     1.5–2.2
+      //   moss FG       3.7
+      //   player        4.0
+      //
+      // Canopy MUST sit in front of mid-trees so the painted vines
+      // naturally hide the trunk tops the way they would in a real
+      // forest. Earlier code had canopy behind trunks, which is why we
+      // kept needing a vignette band to mask the gap.
 
       // MID TREES overlay — trunks span ~80% of frame height. Pull DOWN
       // by trunkBuryY so roots/bases disappear behind earth fill + moss
       // foreground (HK/Ori: trees emerge FROM the ground, not stand ON it).
-      // 0.55: bury enough that trunk tops sit BEHIND the screen-top
-      // shade band, not poking up into pure-black sky at the edges.
       const PH = PLAYER_HEIGHT * 1.4
       const visualFeetY = this.gs.groundY - Math.round(PH * 0.35)
-      const trunkBuryY = Math.round(PH * 0.55)
+      const trunkBuryY = Math.round(PH * 0.35)
       const midSrc6 = this.textures.get('plate6_mid').getSourceImage() as HTMLImageElement
       this.plateMid = this.add.tileSprite(0, trunkBuryY, w, h, 'plate6_mid')
         .setOrigin(0, 0)
-        .setDepth(0.5)
+        .setDepth(0.3)
       this.plateMid.tileScaleY = h / midSrc6.height
       this.plateMid.tileScaleX = h / midSrc6.height
+
+      // CANOPY overlay — hanging vines + overhead branches. Drapes in
+      // FRONT of the trunks (depth 0.7) so vines hide trunk tops.
+      const canopySrc6 = this.textures.get('plate6_canopy').getSourceImage() as HTMLImageElement
+      this.plateCanopy = this.add.tileSprite(0, 0, w, h, 'plate6_canopy')
+        .setOrigin(0, 0)
+        .setDepth(0.7)
+      this.plateCanopy.tileScaleY = h / canopySrc6.height
+      this.plateCanopy.tileScaleX = h / canopySrc6.height
 
       // EARTH FILL — solid opaque slab from visual feet line to screen
       // bottom. This is the HK/Ori "walk surface": player feet always meet
@@ -433,27 +445,8 @@ export class SwampScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setDepth(0.95)
 
-      // TOP CANOPY SHADE — soft overhead darkness, occludes trunk tops
-      // and any background bleed at the edges. Built from many thin
-      // horizontal strips along an ease curve so there is no visible seam
-      // or hard rectangle edge at the bottom of the band.
-      //
-      // Depth 1.4: in front of canopy plate (0.0), mid-trees (0.5),
-      // earth (0.95); behind obstacles (1.5+), moss (3.7), player (4.0).
-      const VIGNETTE_DEPTH = 1.4
-      const shadeH = Math.round(h * 0.22)   // total reach (~22% of viewport)
-      const peakAlpha = 0.95                 // darkest at very top
-      const strips = 48
-      const stripH = Math.max(1, Math.ceil(shadeH / strips))
-      for (let i = 0; i < strips; i++) {
-        // ease-out: stays dark in the top quarter, fades smoothly to 0.
-        const t = i / (strips - 1)
-        const a = peakAlpha * Math.pow(1 - t, 1.6)
-        if (a <= 0.01) break
-        this.add.rectangle(0, i * stripH, w, stripH + 1, 0x040805, a)
-          .setOrigin(0, 0)
-          .setDepth(VIGNETTE_DEPTH)
-      }
+      // (Top canopy shade vignette removed — reordering canopy in front
+      // of trunks made it unnecessary. Painted vines do the masking now.)
 
       // GROUND/MOSS overlay — painted vegetation as FOREGROUND. Sits ABOVE
       // the player (depth 2.5) so it occludes ankles/shins → wading effect.
